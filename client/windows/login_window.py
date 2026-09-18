@@ -1,3 +1,4 @@
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QLabel,
@@ -12,9 +13,10 @@ from client.api_client import ApiClient, ApiError
 
 
 class LoginWindow(QWidget):
-    def __init__(self, api_client: ApiClient):
+    def __init__(self, api_client: ApiClient, on_register_requested=None):
         super().__init__()
         self.api_client = api_client
+        self.on_register_requested = on_register_requested
         self.setWindowTitle("Secure Multi-Cloud Backup — Log in")
         self.resize(480, 360)
         self.setMinimumSize(420, 320)
@@ -54,6 +56,12 @@ class LoginWindow(QWidget):
         self.login_button.setMinimumHeight(40)
         self.login_button.clicked.connect(self.handle_login)
 
+        self.register_link = QPushButton("Need an account? Register")
+        self.register_link.setFont(field_font)
+        self.register_link.setFlat(True)
+        self.register_link.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.register_link.clicked.connect(self._handle_register_click)
+
         layout = QVBoxLayout()
         layout.setContentsMargins(32, 32, 32, 32)
         layout.setSpacing(10)
@@ -66,8 +74,13 @@ class LoginWindow(QWidget):
         layout.addSpacing(8)
         layout.addWidget(self.login_button)
         layout.addWidget(self.status_label)
+        layout.addWidget(self.register_link)
         layout.addStretch()
         self.setLayout(layout)
+
+    def _handle_register_click(self):
+        if self.on_register_requested:
+            self.on_register_requested()
 
     def handle_login(self):
         email = self.email_input.text().strip()
