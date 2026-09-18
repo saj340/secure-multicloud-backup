@@ -42,3 +42,22 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "email", "full_name", "date_joined"]
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    new_password1 = serializers.CharField(write_only=True)
+    new_password2 = serializers.CharField(write_only=True)
+
+    def validate_new_password1(self, value):
+        validate_password(value)
+        return value
+
+    def validate(self, data):
+        if data["new_password1"] != data["new_password2"]:
+            raise serializers.ValidationError({"new_password2": "Passwords do not match."})
+        return data

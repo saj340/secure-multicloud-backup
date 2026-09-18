@@ -143,3 +143,8 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
 }
+
+# Dev-only: prints "sent" emails to the console instead of using a real
+# mail server. Swap to an SMTP backend when this needs to work for real.
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@securebackup.local'

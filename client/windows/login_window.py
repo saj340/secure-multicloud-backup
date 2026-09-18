@@ -13,10 +13,11 @@ from client.api_client import ApiClient, ApiError
 
 
 class LoginWindow(QWidget):
-    def __init__(self, api_client: ApiClient, on_register_requested=None):
+    def __init__(self, api_client: ApiClient, on_register_requested=None, on_forgot_password_requested=None):
         super().__init__()
         self.api_client = api_client
         self.on_register_requested = on_register_requested
+        self.on_forgot_password_requested = on_forgot_password_requested
         self.setWindowTitle("Secure Multi-Cloud Backup — Log in")
         self.resize(480, 360)
         self.setMinimumSize(420, 320)
@@ -62,6 +63,12 @@ class LoginWindow(QWidget):
         self.register_link.setCursor(Qt.CursorShape.PointingHandCursor)
         self.register_link.clicked.connect(self._handle_register_click)
 
+        self.forgot_password_link = QPushButton("Forgot password?")
+        self.forgot_password_link.setFont(field_font)
+        self.forgot_password_link.setFlat(True)
+        self.forgot_password_link.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.forgot_password_link.clicked.connect(self._handle_forgot_password_click)
+
         layout = QVBoxLayout()
         layout.setContentsMargins(32, 32, 32, 32)
         layout.setSpacing(10)
@@ -75,12 +82,17 @@ class LoginWindow(QWidget):
         layout.addWidget(self.login_button)
         layout.addWidget(self.status_label)
         layout.addWidget(self.register_link)
+        layout.addWidget(self.forgot_password_link)
         layout.addStretch()
         self.setLayout(layout)
 
     def _handle_register_click(self):
         if self.on_register_requested:
             self.on_register_requested()
+
+    def _handle_forgot_password_click(self):
+        if self.on_forgot_password_requested:
+            self.on_forgot_password_requested()
 
     def handle_login(self):
         email = self.email_input.text().strip()

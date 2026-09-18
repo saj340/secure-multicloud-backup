@@ -67,6 +67,30 @@ class ApiClient:
             raise ApiError(self._extract_error(response), response.status_code)
         return response.json()
 
+    def request_password_reset(self, email):
+        response = requests.post(
+            f"{self.base_url}/accounts/password-reset/request/",
+            json={"email": email},
+            timeout=10,
+        )
+        if response.status_code != 200:
+            raise ApiError(self._extract_error(response), response.status_code)
+        return response.json()
+
+    def confirm_password_reset(self, code, new_password1, new_password2):
+        response = requests.post(
+            f"{self.base_url}/accounts/password-reset/confirm/",
+            json={
+                "code": code,
+                "new_password1": new_password1,
+                "new_password2": new_password2,
+            },
+            timeout=10,
+        )
+        if response.status_code != 200:
+            raise ApiError(self._extract_error(response), response.status_code)
+        return response.json()
+
     @staticmethod
     def _extract_error(response):
         try:
