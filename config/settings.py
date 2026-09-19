@@ -154,3 +154,10 @@ DEFAULT_FROM_EMAIL = 'noreply@securebackup.local'
 # committed to git. If this is ever rotated, every wrapped key already in
 # the database becomes unrecoverable, so treat it like SECRET_KEY.
 MASTER_KEK = os.environ['MASTER_KEK']
+
+# A "local folder" provider lets whoever connects it point the server at any
+# directory it can write to, so the API only offers it in development.
+ALLOW_LOCAL_FOLDER_PROVIDERS = DEBUG
+
+# Ciphertext arrives as one request body held in memory, so cap its size.
+MAX_UPLOAD_BYTES = 200 * 1024 * 1024

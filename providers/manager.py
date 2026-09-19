@@ -10,6 +10,7 @@ registering it in ADAPTER_FACTORIES; nothing else changes.
 
 import json
 
+from django.conf import settings
 from django.utils import timezone
 
 from protection.crypto import DecryptionError, decrypt_with_master_key, encrypt_with_master_key
@@ -28,6 +29,14 @@ ADAPTER_FACTORIES = {
         credentials["path"]
     ),
 }
+
+
+def available_provider_types() -> list[str]:
+    """Provider types a user may connect through the API right now."""
+    types = list(ADAPTER_FACTORIES)
+    if not settings.ALLOW_LOCAL_FOLDER_PROVIDERS:
+        types.remove(CloudProvider.ProviderType.LOCAL_FOLDER.value)
+    return types
 
 
 def _build_adapter(provider_type: str, credentials: dict) -> StorageAdapter:
