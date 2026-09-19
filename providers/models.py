@@ -47,11 +47,18 @@ class StorageLocation(models.Model):
     cloud_provider = models.ForeignKey(
         CloudProvider, on_delete=models.CASCADE, related_name="storage_locations"
     )
+    fragment_index = models.PositiveSmallIntegerField(
+        default=0, help_text="Which fragment of the file version this location holds."
+    )
     remote_path = models.TextField()
     upload_status = models.CharField(
         max_length=20, choices=UploadStatus.choices, default=UploadStatus.PENDING
     )
     uploaded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ["file_version", "fragment_index"]
+        ordering = ["file_version", "fragment_index"]
 
     def __str__(self):
         return f"{self.file_version} @ {self.cloud_provider.display_name}"

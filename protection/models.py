@@ -12,6 +12,9 @@ class IntegrityRecord(models.Model):
         FileVersion, on_delete=models.CASCADE, related_name="integrity_records"
     )
     scope = models.CharField(max_length=20, choices=Scope.choices, default=Scope.WHOLE_FILE)
+    fragment_index = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Fragment position; empty for whole-file records."
+    )
     algorithm = models.CharField(max_length=50, default="SHA-256")
     hash_value = models.CharField(max_length=128)
     is_valid = models.BooleanField(null=True, help_text="Result of the most recent verification.")

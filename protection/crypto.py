@@ -18,6 +18,9 @@ from cryptography.fernet import Fernet, InvalidToken
 from django.conf import settings
 
 
+ENCRYPTION_ALGORITHM = "Fernet (AES-128-CBC + HMAC-SHA256)"
+
+
 class DecryptionError(Exception):
     """Raised when data cannot be decrypted: wrong key, tampering, or corruption."""
 
@@ -92,7 +95,7 @@ def protect_file_bytes(plaintext: bytes) -> dict:
     return {
         "ciphertext": ciphertext,
         "protection_metadata": {
-            "algorithm": "Fernet (AES-128-CBC + HMAC-SHA256)",
+            "algorithm": ENCRYPTION_ALGORITHM,
             "wrapped_key": wrap_key(data_key),
         },
         "ciphertext_hash": compute_sha256(ciphertext),
