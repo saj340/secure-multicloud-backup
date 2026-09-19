@@ -3,7 +3,6 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -13,11 +12,18 @@ from client.api_client import ApiClient, ApiError
 
 
 class LoginWindow(QWidget):
-    def __init__(self, api_client: ApiClient, on_register_requested=None, on_forgot_password_requested=None):
+    def __init__(
+        self,
+        api_client: ApiClient,
+        on_register_requested=None,
+        on_forgot_password_requested=None,
+        on_login_success=None,
+    ):
         super().__init__()
         self.api_client = api_client
         self.on_register_requested = on_register_requested
         self.on_forgot_password_requested = on_forgot_password_requested
+        self.on_login_success = on_login_success
         self.setWindowTitle("Secure Multi-Cloud Backup — Log in")
         self.resize(480, 360)
         self.setMinimumSize(420, 320)
@@ -56,6 +62,8 @@ class LoginWindow(QWidget):
         self.login_button.setFont(field_font)
         self.login_button.setMinimumHeight(40)
         self.login_button.clicked.connect(self.handle_login)
+        self.email_input.returnPressed.connect(self.handle_login)
+        self.password_input.returnPressed.connect(self.handle_login)
 
         self.register_link = QPushButton("Need an account? Register")
         self.register_link.setFont(field_font)
@@ -110,10 +118,8 @@ class LoginWindow(QWidget):
         except ApiError as exc:
             self.status_label.setText(exc.message)
         else:
-            QMessageBox.information(
-                self,
-                "Logged in",
-                f"Welcome, {user['email']}!\n\nToken stored in memory for this session.",
-            )
+            self.password_input.clear()
+            if self.on_login_success:
+                self.on_login_success(user)
         finally:
             self.login_button.setEnabled(True)

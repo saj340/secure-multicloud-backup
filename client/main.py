@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QApplication
 from client.api_client import ApiClient
 from client.windows.forgot_password_window import ForgotPasswordWindow
 from client.windows.login_window import LoginWindow
+from client.windows.main_window import MainWindow
 from client.windows.register_window import RegisterWindow
 from client.windows.reset_password_window import ResetPasswordWindow
 
@@ -18,6 +19,7 @@ class AppWindows:
             api_client,
             on_register_requested=self.show_register,
             on_forgot_password_requested=self.show_forgot_password,
+            on_login_success=self.show_main,
         )
         self.register_window = RegisterWindow(
             api_client,
@@ -34,19 +36,21 @@ class AppWindows:
             on_reset=self.show_login,
             on_login_requested=self.show_login,
         )
+        self.main_window = MainWindow(api_client, on_logout=self.show_login)
         self._windows = [
             self.login_window,
             self.register_window,
             self.forgot_password_window,
             self.reset_password_window,
+            self.main_window,
         ]
 
     def _show_only(self, window):
-        for w in self._windows:
-            if w is window:
-                w.show()
-            else:
-                w.hide()
+        # Show the target first so there is never a moment with no visible window.
+        window.show()
+        for other in self._windows:
+            if other is not window:
+                other.hide()
 
     def show_login(self):
         self._show_only(self.login_window)
@@ -59,6 +63,10 @@ class AppWindows:
 
     def show_reset_password(self):
         self._show_only(self.reset_password_window)
+
+    def show_main(self, user):
+        self.main_window.set_user(user)
+        self._show_only(self.main_window)
 
     def start(self):
         self.show_login()
