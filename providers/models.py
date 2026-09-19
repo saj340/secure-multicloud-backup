@@ -6,6 +6,7 @@ from backups.models import FileVersion
 
 class CloudProvider(models.Model):
     class ProviderType(models.TextChoices):
+        LOCAL_FOLDER = "local_folder", "Local folder"
         AWS_S3 = "aws_s3", "Amazon S3"
         BACKBLAZE_B2 = "backblaze_b2", "Backblaze B2"
         AZURE_BLOB = "azure_blob", "Azure Blob Storage"
@@ -22,8 +23,8 @@ class CloudProvider(models.Model):
     display_name = models.CharField(max_length=255)
     encrypted_credentials = models.TextField(
         blank=True,
-        help_text="Ciphertext only — never store plaintext credentials here. "
-        "Encryption implemented when the Cloud Provider Manager is built.",
+        help_text="Ciphertext only (encrypted with the master key by providers.manager). "
+        "Never store plaintext credentials here.",
     )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DISCONNECTED)
     created_at = models.DateTimeField(auto_now_add=True)

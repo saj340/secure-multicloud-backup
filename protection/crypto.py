@@ -31,23 +31,33 @@ def generate_data_key() -> bytes:
     return Fernet.generate_key()
 
 
-def wrap_key(data_key: bytes) -> str:
-    """Encrypt a data key under the server's master key, for storage."""
-    return Fernet(_master_kek()).encrypt(data_key).decode()
+def encrypt_with_master_key(plaintext: bytes) -> str:
+    """Encrypt a small secret (a data key, provider credentials) for storage."""
+    return Fernet(_master_kek()).encrypt(plaintext).decode()
 
 
-def unwrap_key(wrapped_key: str) -> bytes:
-    """Recover a plaintext data key from its wrapped (stored) form."""
+def decrypt_with_master_key(token: str) -> bytes:
+    """Reverse of encrypt_with_master_key."""
     try:
-        return Fernet(_master_kek()).decrypt(wrapped_key.encode())
+        return Fernet(_master_kek()).decrypt(token.encode())
     except (InvalidToken, ValueError, TypeError) as exc:
         # InvalidToken covers a bad HMAC/expired token; ValueError/TypeError
         # cover malformed input (e.g. corrupted base64) that never even
         # reaches the HMAC check. Either way, callers just need one
         # consistent failure signal.
         raise DecryptionError(
-            "Could not unwrap data key — master key mismatch or corrupted data."
+            "Could not decrypt with the master key — master key mismatch or corrupted data."
         ) from exc
+
+
+def wrap_key(data_key: bytes) -> str:
+    """Encrypt a data key under the server's master key, for storage."""
+    return encrypt_with_master_key(data_key)
+
+
+def unwrap_key(wrapped_key: str) -> bytes:
+    """Recover a plaintext data key from its wrapped (stored) form."""
+    return decrypt_with_master_key(wrapped_key)
 
 
 def encrypt_bytes(plaintext: bytes, data_key: bytes) -> bytes:

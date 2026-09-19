@@ -21,6 +21,10 @@ class ObjectNotFoundError(ProviderError):
     """The requested remote object doesn't exist."""
 
 
+class ProviderConfigurationError(ProviderError):
+    """The provider can't be used as configured: unknown type, or missing/unreadable credentials."""
+
+
 class StorageAdapter(ABC):
     @abstractmethod
     def upload(self, remote_path: str, data: bytes) -> None:

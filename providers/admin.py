@@ -7,6 +7,7 @@ from .models import CloudProvider, StorageLocation
 class CloudProviderAdmin(admin.ModelAdmin):
     list_display = ["display_name", "user", "provider_type", "status", "last_checked_at"]
     list_filter = ["provider_type", "status"]
+    readonly_fields = ["encrypted_credentials"]
 
 
 @admin.register(StorageLocation)

@@ -4,7 +4,9 @@ from .crypto import (
     DecryptionError,
     compute_sha256,
     decrypt_bytes,
+    decrypt_with_master_key,
     encrypt_bytes,
+    encrypt_with_master_key,
     generate_data_key,
     protect_file_bytes,
     unprotect_file_bytes,
@@ -112,3 +114,14 @@ class ProtectFileBytesTests(TestCase):
     def test_uncorrupted_data_passes_integrity_check(self):
         result = protect_file_bytes(b"clean data")
         self.assertTrue(verify_integrity(result["ciphertext"], result["ciphertext_hash"]))
+
+
+class MasterKeyEncryptionTests(TestCase):
+    def test_round_trip_and_ciphertext_hides_the_secret(self):
+        token = encrypt_with_master_key(b"my-cloud-api-secret")
+        self.assertNotIn("my-cloud-api-secret", token)
+        self.assertEqual(decrypt_with_master_key(token), b"my-cloud-api-secret")
+
+    def test_garbage_raises_decryption_error(self):
+        with self.assertRaises(DecryptionError):
+            decrypt_with_master_key("not-a-real-token")
