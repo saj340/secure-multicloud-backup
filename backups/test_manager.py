@@ -209,6 +209,18 @@ class BackupRunStatusTests(PipelineTestCase):
         self.assertEqual(self.job.status, BackupJob.Status.FAILED)
         self.assertTrue(ActivityLog.objects.filter(action="backup_run_failed").exists())
 
+    def test_a_rerun_that_skips_a_file_fails_even_though_its_old_version_completed(self):
+        begin_backup_run(self.job)
+        for file in self.job.files.all():
+            self.client_backup(file=file)
+        finish_backup_run(self.job)
+        self.assertEqual(self.job.status, BackupJob.Status.COMPLETED)
+
+        begin_backup_run(self.job)
+        self.client_backup()  # second run only backs up one of the two files
+        finish_backup_run(self.job)
+        self.assertEqual(self.job.status, BackupJob.Status.FAILED)
+
 
 class RecoveryTests(PipelineTestCase):
     def test_round_trip_is_byte_identical_and_recorded(self):

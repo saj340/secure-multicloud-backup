@@ -66,18 +66,25 @@ def create_backup_job(user, name: str, paths: list[str]) -> BackupJob:
 
 def begin_backup_run(job: BackupJob) -> None:
     job.status = BackupJob.Status.IN_PROGRESS
-    job.save(update_fields=["status"])
+    job.last_run_started_at = timezone.now()
+    job.save(update_fields=["status", "last_run_started_at"])
     log_activity(job.user, "backup_run_started", f"Backup '{job.name}' started.", job_id=job.id)
 
 
 def finish_backup_run(job: BackupJob) -> BackupJob:
-    """A run succeeds only if every file's newest version was stored completely."""
-    completed = FileVersion.UploadStatus.COMPLETED
-    succeeded = True
-    for file in job.files.all():
-        latest = file.versions.order_by("-version_number").first()
-        if latest is None or latest.upload_status != completed:
-            succeeded = False
+    """
+    A run succeeds only if every file got a completed version during this
+    run. Judged from versions the server itself recorded, not from anything
+    the client claims: a file the client skipped still has an older completed
+    version, which must not make the run look successful.
+    """
+    since = job.last_run_started_at or job.created_at
+    succeeded = all(
+        file.versions.filter(
+            upload_status=FileVersion.UploadStatus.COMPLETED, backup_time__gte=since
+        ).exists()
+        for file in job.files.all()
+    )
 
     job.status = BackupJob.Status.COMPLETED if succeeded else BackupJob.Status.FAILED
     job.save(update_fields=["status"])

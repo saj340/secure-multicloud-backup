@@ -1,6 +1,8 @@
 import requests
 
 API_BASE_URL = "http://127.0.0.1:8000/api"
+DEFAULT_TIMEOUT = 10
+TRANSFER_TIMEOUT = 300
 
 
 class ApiError(Exception):
@@ -20,76 +22,156 @@ class ApiClient:
             return {"Authorization": f"Token {self.token}"}
         return {}
 
+    def _request(self, method, path, expected=(200,), timeout=DEFAULT_TIMEOUT, **kwargs):
+        headers = {**self._headers(), **kwargs.pop("headers", {})}
+        try:
+            response = requests.request(
+                method, f"{self.base_url}{path}", headers=headers, timeout=timeout, **kwargs
+            )
+        except requests.RequestException as exc:
+            raise ApiError("Could not reach the server. Check that it is running.") from exc
+        if response.status_code not in expected:
+            raise ApiError(self._extract_error(response), response.status_code)
+        return response
+
+    # ---------------------------------------------------------- accounts
+
     def register(self, email, full_name, password1, password2):
-        response = requests.post(
-            f"{self.base_url}/accounts/register/",
+        return self._request(
+            "POST",
+            "/accounts/register/",
+            expected=(201,),
             json={
                 "email": email,
                 "full_name": full_name,
                 "password1": password1,
                 "password2": password2,
             },
-            timeout=10,
-        )
-        if response.status_code != 201:
-            raise ApiError(self._extract_error(response), response.status_code)
-        return response.json()
+        ).json()
 
     def login(self, email, password):
-        response = requests.post(
-            f"{self.base_url}/accounts/login/",
-            json={"email": email, "password": password},
-            timeout=10,
-        )
-        if response.status_code != 200:
-            raise ApiError(self._extract_error(response), response.status_code)
-        data = response.json()
+        data = self._request(
+            "POST", "/accounts/login/", json={"email": email, "password": password}
+        ).json()
         self.token = data["token"]
         return data["user"]
 
     def logout(self):
-        response = requests.post(
-            f"{self.base_url}/accounts/logout/",
-            headers=self._headers(),
-            timeout=10,
-        )
-        self.token = None
-        if response.status_code != 204:
-            raise ApiError(self._extract_error(response), response.status_code)
+        try:
+            self._request("POST", "/accounts/logout/", expected=(204,))
+        finally:
+            self.token = None
 
     def me(self):
-        response = requests.get(
-            f"{self.base_url}/accounts/me/",
-            headers=self._headers(),
-            timeout=10,
-        )
-        if response.status_code != 200:
-            raise ApiError(self._extract_error(response), response.status_code)
-        return response.json()
+        return self._request("GET", "/accounts/me/").json()
 
     def request_password_reset(self, email):
-        response = requests.post(
-            f"{self.base_url}/accounts/password-reset/request/",
-            json={"email": email},
-            timeout=10,
-        )
-        if response.status_code != 200:
-            raise ApiError(self._extract_error(response), response.status_code)
-        return response.json()
+        return self._request(
+            "POST", "/accounts/password-reset/request/", json={"email": email}
+        ).json()
 
     def confirm_password_reset(self, code, new_password1, new_password2):
-        response = requests.post(
-            f"{self.base_url}/accounts/password-reset/confirm/",
+        return self._request(
+            "POST",
+            "/accounts/password-reset/confirm/",
             json={
                 "code": code,
                 "new_password1": new_password1,
                 "new_password2": new_password2,
             },
-            timeout=10,
-        )
-        if response.status_code != 200:
-            raise ApiError(self._extract_error(response), response.status_code)
-        return response.json()
+        ).json()
+
+    # --------------------------------------------------------- providers
+
+    def list_provider_types(self):
+        return self._request("GET", "/providers/types/").json()
+
+    def list_providers(self):
+        return self._request("GET", "/providers/").json()
+
+    def connect_provider(self, provider_type, display_name, credentials):
+        return self._request(
+            "POST",
+            "/providers/",
+            expected=(201,),
+            json={
+                "provider_type": provider_type,
+                "display_name": display_name,
+                "credentials": credentials,
+            },
+        ).json()
+
+    def check_provider(self, provider_id):
+        return self._request("POST", f"/providers/{provider_id}/check/").json()
+
+    def disconnect_provider(self, provider_id):
+        return self._request("POST", f"/providers/{provider_id}/disconnect/").json()
+
+    # ----------------------------------------------------------- backups
+
+    def list_jobs(self):
+        return self._request("GET", "/backups/jobs/").json()
+
+    def get_job(self, job_id):
+        return self._request("GET", f"/backups/jobs/{job_id}/").json()
+
+    def create_job(self, name, paths):
+        return self._request(
+            "POST", "/backups/jobs/", expected=(201,), json={"name": name, "paths": paths}
+        ).json()
+
+    def begin_job(self, job_id):
+        return self._request("POST", f"/backups/jobs/{job_id}/begin/").json()
+
+    def finish_job(self, job_id):
+        return self._request("POST", f"/backups/jobs/{job_id}/finish/").json()
+
+    def start_version(self, file_id, original_filename, original_size):
+        """Returns (version, data_key). The key encrypts the file locally."""
+        data = self._request(
+            "POST",
+            f"/backups/files/{file_id}/versions/",
+            expected=(201,),
+            json={"original_filename": original_filename, "original_size": original_size},
+        ).json()
+        return data["version"], data["data_key"]
+
+    def upload_ciphertext(self, version_id, ciphertext):
+        return self._request(
+            "PUT",
+            f"/backups/versions/{version_id}/ciphertext/",
+            timeout=TRANSFER_TIMEOUT,
+            data=ciphertext,
+            headers={"Content-Type": "application/octet-stream"},
+        ).json()
+
+    # -------------------------------------------------------- recoveries
+
+    def list_recoveries(self):
+        return self._request("GET", "/backups/recoveries/").json()
+
+    def start_recovery(self, version_id):
+        return self._request(
+            "POST", "/backups/recoveries/", expected=(201,), json={"version_id": version_id}
+        ).json()
+
+    def download_recovery_ciphertext(self, operation_id):
+        return self._request(
+            "GET",
+            f"/backups/recoveries/{operation_id}/ciphertext/",
+            timeout=TRANSFER_TIMEOUT,
+        ).content
+
+    def get_recovery_key(self, operation_id):
+        return self._request("GET", f"/backups/recoveries/{operation_id}/key/").json()["data_key"]
+
+    def complete_recovery(self, operation_id):
+        return self._request("POST", f"/backups/recoveries/{operation_id}/complete/").json()
+
+    def fail_recovery(self, operation_id, message):
+        return self._request(
+            "POST", f"/backups/recoveries/{operation_id}/fail/", json={"message": message}
+        ).json()
 
     @staticmethod
     def _extract_error(response):
@@ -98,6 +180,8 @@ class ApiClient:
         except ValueError:
             return f"Server error ({response.status_code})"
 
+        if not isinstance(data, dict):
+            return f"Server error ({response.status_code})"
         if "detail" in data:
             return data["detail"]
 

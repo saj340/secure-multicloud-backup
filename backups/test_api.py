@@ -15,6 +15,7 @@ PLAINTEXT = b"Quarterly report: SECRET-MARKER-98765. " * 100
 OCTET_STREAM = "application/octet-stream"
 
 
+@override_settings(ALLOW_LOCAL_FOLDER_PROVIDERS=True)
 class BackupApiTestCase(TestCase):
     provider_count = 3
 

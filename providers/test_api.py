@@ -11,6 +11,7 @@ from accounts.models import User
 from .models import CloudProvider
 
 
+@override_settings(ALLOW_LOCAL_FOLDER_PROVIDERS=True)
 class ProviderApiTestCase(TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
