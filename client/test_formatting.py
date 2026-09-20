@@ -2,7 +2,7 @@ import re
 
 from django.test import SimpleTestCase
 
-from .formatting import describe_status, format_size, format_timestamp
+from .formatting import describe_status, format_size, format_timestamp, shorten_path
 
 
 class FormatSizeTests(SimpleTestCase):
@@ -47,3 +47,17 @@ class DescribeStatusTests(SimpleTestCase):
 
     def test_unknown_statuses_are_still_readable(self):
         self.assertEqual(describe_status("half_done")[0], "Half done")
+
+
+class ShortenPathTests(SimpleTestCase):
+    def test_short_paths_are_left_alone(self):
+        for path in ("C:\\docs", "C:\\docs\\a", "/home/sam", "/home/sam/docs", "notes.txt"):
+            with self.subTest(path=path):
+                self.assertEqual(shorten_path(path), path)
+
+    def test_long_paths_keep_their_last_two_parts(self):
+        self.assertEqual(shorten_path("C:\\Users\\sam\\Projects\\Thesis"), "…\\Projects\\Thesis")
+        self.assertEqual(shorten_path("/home/sam/work/reports/2026"), "…/reports/2026")
+
+    def test_a_trailing_separator_is_ignored_when_counting(self):
+        self.assertEqual(shorten_path("C:\\a\\b\\c\\d\\"), "…\\c\\d")

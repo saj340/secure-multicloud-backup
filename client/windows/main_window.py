@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from client.api_client import ApiClient
+from client.schedule_runner import ScheduleRunner
 from client.workers import long_task_running, run_in_background
 
 from .dashboard_page import DashboardPage
@@ -18,6 +19,7 @@ from .history_page import HistoryPage
 from .new_backup_page import NewBackupPage
 from .providers_page import ProvidersPage
 from .recover_page import RecoverPage
+from .schedules_page import SchedulesPage
 from .settings_page import SettingsPage
 
 
@@ -40,6 +42,10 @@ class MainWindow(QWidget):
         app_title = QLabel("Secure Multi-Cloud Backup")
         app_title.setFont(title_font)
 
+        self.schedule_status = QLabel("")
+        self.schedule_status.setFont(body_font)
+        self.schedule_status.setStyleSheet("color: #1b5fa8;")
+
         self.user_label = QLabel("")
         self.user_label.setFont(body_font)
         self.user_label.setStyleSheet("color: #555555;")
@@ -51,6 +57,8 @@ class MainWindow(QWidget):
         header = QHBoxLayout()
         header.addWidget(app_title)
         header.addStretch()
+        header.addWidget(self.schedule_status)
+        header.addSpacing(16)
         header.addWidget(self.user_label)
         header.addWidget(self.logout_button)
 
@@ -58,6 +66,7 @@ class MainWindow(QWidget):
         self.new_backup = NewBackupPage(api_client)
         self.history = HistoryPage(api_client)
         self.recover = RecoverPage(api_client)
+        self.schedules = SchedulesPage(api_client)
         self.providers = ProvidersPage(api_client)
         self.settings_page = SettingsPage(api_client, on_profile_changed=self.update_user)
         self._pages = [
@@ -65,9 +74,17 @@ class MainWindow(QWidget):
             ("New Backup", self.new_backup),
             ("Backup History", self.history),
             ("Recover Files", self.recover),
+            ("Backup Schedules", self.schedules),
             ("Cloud Providers", self.providers),
             ("Settings", self.settings_page),
         ]
+
+        # Started and stopped by AppWindows, so it only runs while someone is logged in.
+        self.runner = ScheduleRunner(
+            api_client,
+            on_status=self.schedule_status.setText,
+            on_finished=self._scheduled_backup_finished,
+        )
 
         self.pages = QStackedWidget()
         self.sidebar = QListWidget()
@@ -107,6 +124,12 @@ class MainWindow(QWidget):
     def _show_page(self, index):
         self.pages.setCurrentIndex(index)
         self._pages[index][1].refresh()
+
+    def _scheduled_backup_finished(self, _schedule, _outcome):
+        # Keep whichever list is on screen honest about the run that just ended.
+        current = self.pages.currentWidget()
+        if current in (self.schedules, self.history, self.recover):
+            current.refresh()
 
     def closeEvent(self, event):
         if self._confirm_interrupting_task("Closing the app"):

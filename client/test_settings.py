@@ -118,13 +118,13 @@ class MainWindowSettingsTests(GuiTestCase):
         window = MainWindow(self.api)
         self.addCleanup(window.deleteLater)
         window.set_user(self.api.me())
-        window.sidebar.setCurrentRow(5)
-        self.assertEqual(window.sidebar.item(5).text(), "Settings")
+        window.sidebar.setCurrentRow(6)
+        self.assertEqual(window.sidebar.item(6).text(), "Settings")
 
         window.settings_page.name_input.setText("Display Name Changed")
         window.settings_page.save_profile()
         self.assertTrue(wait_until(lambda: "Display Name Changed" in window.dashboard.welcome_label.text()))
-        self.assertEqual(window.pages.currentIndex(), 5)
+        self.assertEqual(window.pages.currentIndex(), 6)
 
 
 class SessionExpiryTests(GuiTestCase):

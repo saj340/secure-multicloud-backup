@@ -92,6 +92,27 @@ redirect plain http to https.
   the proxy, so it would need to pass the real client address through before this is
   useful in production.
 
+## Scheduled backups
+
+Files and encryption live on the user's computer, so scheduled backups run there too:
+in the desktop app, **while it is open and someone is logged in**. The server stores
+the schedules and decides when each is due; the app checks once a minute, runs what
+is due, and reports the result back.
+
+- A schedule is daily or weekly at a time of day. The time is the user's local time
+  (the app sends its UTC offset with the schedule, so "Monday 02:00" means that).
+  A daylight-saving change moves it by an hour until the schedule is next edited.
+- If the app was closed at the scheduled time, the backup runs when it is next
+  opened. Several missed times still mean one run.
+- Each run is stored as its own dated backup (for example `Documents 2026-09-21 02:00`),
+  so files that appeared or disappeared since last time never leave stale entries.
+- A run that can't happen (folder missing, fewer than two providers) is recorded as
+  failed and waits for the schedule's next time, rather than retrying every minute.
+- It never starts while a backup or restore the user started is running.
+
+Running while the app is closed would need a separate background service, which is
+not built.
+
 ## Cloud providers
 
 | Type | Notes |

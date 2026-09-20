@@ -207,6 +207,42 @@ class ApiClient:
             "POST", f"/backups/recoveries/{operation_id}/fail/", json={"message": message}
         ).json()
 
+    # --------------------------------------------------------- schedules
+
+    def list_schedules(self):
+        return self._request("GET", "/backups/schedules/").json()
+
+    def create_schedule(
+        self, name, source_path, frequency, run_at, weekday=None, utc_offset_minutes=0, is_active=True
+    ):
+        return self._request(
+            "POST",
+            "/backups/schedules/",
+            expected=(201,),
+            json={
+                "name": name,
+                "source_path": source_path,
+                "frequency": frequency,
+                "run_at": run_at,
+                "weekday": weekday,
+                "utc_offset_minutes": utc_offset_minutes,
+                "is_active": is_active,
+            },
+        ).json()
+
+    def update_schedule(self, schedule_id, **fields):
+        return self._request("PATCH", f"/backups/schedules/{schedule_id}/", json=fields).json()
+
+    def delete_schedule(self, schedule_id):
+        self._request("DELETE", f"/backups/schedules/{schedule_id}/", expected=(204,))
+
+    def record_schedule_run(self, schedule_id, status, message=""):
+        return self._request(
+            "POST",
+            f"/backups/schedules/{schedule_id}/record-run/",
+            json={"status": status, "message": message},
+        ).json()
+
     @staticmethod
     def _extract_error(response):
         try:

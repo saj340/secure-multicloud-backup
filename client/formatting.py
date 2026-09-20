@@ -28,3 +28,12 @@ def format_size(size: int) -> str:
 
 def describe_status(status: str):
     return STATUS_DISPLAY.get(status, (status.replace("_", " ").capitalize(), "#000000"))
+
+
+def shorten_path(path: str) -> str:
+    """A long path as its last two parts, e.g. …\\Projects\\Thesis, for a narrow column."""
+    separator = "\\" if "\\" in path else "/"
+    parts = [part for part in path.split(separator) if part]
+    if len(parts) <= 3:
+        return path
+    return f"…{separator}{separator.join(parts[-2:])}"

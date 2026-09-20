@@ -16,8 +16,9 @@ SESSION_EXPIRED = "Your session has expired. Please log in again."
 class AppWindows:
     """Owns all top-level windows and switches between them."""
 
-    def __init__(self, api_client: ApiClient):
+    def __init__(self, api_client: ApiClient, run_schedules=False):
         self.api_client = api_client
+        self.run_schedules = run_schedules
         self.login_window = LoginWindow(
             api_client,
             on_register_requested=self.show_register,
@@ -58,6 +59,7 @@ class AppWindows:
                 other.hide()
 
     def show_login(self):
+        self.main_window.runner.stop()  # no scheduled backups without a logged-in user
         self._show_only(self.login_window)
 
     def show_register(self):
@@ -72,6 +74,8 @@ class AppWindows:
     def show_main(self, user):
         self.main_window.set_user(user)
         self._show_only(self.main_window)
+        if self.run_schedules:
+            self.main_window.runner.start()
 
     def _session_expired(self):
         if not self.main_window.isVisible():
@@ -90,7 +94,7 @@ def main():
         api_client = ApiClient()
     except ValueError as exc:  # e.g. BACKUP_API_URL is plain http to a remote server
         sys.exit(str(exc))
-    windows = AppWindows(api_client)
+    windows = AppWindows(api_client, run_schedules=True)
     windows.start()
     sys.exit(app.exec())
 

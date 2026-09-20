@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import schedule_views, views
 
 app_name = "backups"
 
@@ -28,4 +28,11 @@ urlpatterns = [
         name="recovery-complete",
     ),
     path("recoveries/<int:pk>/fail/", views.RecoveryFailView.as_view(), name="recovery-fail"),
+    path("schedules/", schedule_views.ScheduleListView.as_view(), name="schedule-list"),
+    path("schedules/<int:pk>/", schedule_views.ScheduleDetailView.as_view(), name="schedule-detail"),
+    path(
+        "schedules/<int:pk>/record-run/",
+        schedule_views.ScheduleRecordRunView.as_view(),
+        name="schedule-record-run",
+    ),
 ]

@@ -1,5 +1,9 @@
+import datetime
+
 from django.conf import settings
+from django.core.validators import MaxValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 class BackupJob(models.Model):
@@ -73,9 +77,57 @@ class BackupSchedule(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_run_at = models.DateTimeField(null=True, blank=True)
+    last_result = models.CharField(max_length=20, blank=True)
+    run_at = models.TimeField(
+        default=datetime.time(2, 0),
+        help_text="Time of day in the user's own timezone (see utc_offset_minutes).",
+    )
+    weekday = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        validators=[MaxValueValidator(6)],
+        help_text="0 = Monday ... 6 = Sunday. Only used by weekly schedules.",
+    )
+    utc_offset_minutes = models.IntegerField(
+        default=0,
+        help_text="The user's UTC offset when the schedule was saved, so run_at means their local time.",
+    )
+
+    class Meta:
+        ordering = ["name", "id"]
 
     def __str__(self):
         return f"{self.name} ({self.get_frequency_display()})"
+
+    def _period(self):
+        weekly = self.frequency == self.Frequency.WEEKLY
+        return datetime.timedelta(days=7 if weekly else 1)
+
+    def latest_occurrence(self, now=None):
+        """The most recent scheduled time that is not in the future."""
+        tz = timezone.get_fixed_timezone(self.utc_offset_minutes)
+        local_now = (now or timezone.now()).astimezone(tz)
+        candidate = local_now.replace(
+            hour=self.run_at.hour, minute=self.run_at.minute, second=0, microsecond=0
+        )
+        if self.frequency == self.Frequency.WEEKLY:
+            candidate -= datetime.timedelta(days=(local_now.weekday() - (self.weekday or 0)) % 7)
+        if candidate > local_now:
+            candidate -= self._period()
+        return candidate
+
+    def next_occurrence(self, now=None):
+        return self.latest_occurrence(now) + self._period()
+
+    def is_due(self, now=None):
+        """
+        Due when a scheduled time has passed since the last run (or, for a new
+        schedule, since it was created). Several missed times still mean one run.
+        """
+        if not self.is_active:
+            return False
+        baseline = self.last_run_at or self.created_at
+        return baseline < self.latest_occurrence(now)
 
 
 class RecoveryOperation(models.Model):

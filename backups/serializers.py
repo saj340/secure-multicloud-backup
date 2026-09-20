@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import BackupJob, File, FileVersion, RecoveryOperation
+from .models import BackupJob, BackupSchedule, File, FileVersion, RecoveryOperation
 
 
 class FileVersionSerializer(serializers.ModelSerializer):
@@ -80,3 +80,53 @@ class StartRecoverySerializer(serializers.Serializer):
 
 class FailRecoverySerializer(serializers.Serializer):
     message = serializers.CharField(max_length=1000)
+
+
+class BackupScheduleSerializer(serializers.ModelSerializer):
+    run_at = serializers.TimeField(format="%H:%M", input_formats=["%H:%M", "%H:%M:%S"])
+    is_due = serializers.SerializerMethodField()
+    next_run_at = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BackupSchedule
+        fields = [
+            "id",
+            "name",
+            "source_path",
+            "frequency",
+            "run_at",
+            "weekday",
+            "utc_offset_minutes",
+            "is_active",
+            "created_at",
+            "last_run_at",
+            "last_result",
+            "is_due",
+            "next_run_at",
+        ]
+        read_only_fields = ["id", "created_at", "last_run_at", "last_result", "is_due", "next_run_at"]
+
+    def get_is_due(self, schedule):
+        return schedule.is_due()
+
+    def get_next_run_at(self, schedule):
+        return schedule.next_occurrence() if schedule.is_active else None
+
+    def validate_utc_offset_minutes(self, value):
+        if not -14 * 60 <= value <= 14 * 60:
+            raise serializers.ValidationError("That is not a real UTC offset.")
+        return value
+
+    def validate(self, data):
+        frequency = data.get("frequency", self.instance.frequency if self.instance else None)
+        weekday = data.get("weekday", self.instance.weekday if self.instance else None)
+        if frequency == BackupSchedule.Frequency.WEEKLY and weekday is None:
+            raise serializers.ValidationError({"weekday": "Choose a day of the week."})
+        if frequency == BackupSchedule.Frequency.DAILY:
+            data["weekday"] = None
+        return data
+
+
+class RecordScheduleRunSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=["completed", "failed"])
+    message = serializers.CharField(max_length=500, required=False, allow_blank=True)

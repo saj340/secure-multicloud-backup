@@ -83,6 +83,7 @@ class NavigationTests(GuiTestCase):
                 "New Backup",
                 "Backup History",
                 "Recover Files",
+                "Backup Schedules",
                 "Cloud Providers",
                 "Settings",
             ],

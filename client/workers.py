@@ -63,6 +63,7 @@ class _Job(QObject):
         self._on_success = on_success
         self._on_error = on_error
         self._on_progress = on_progress
+        self._delivered = False  # its result has reached the UI, even if cleanup hasn't run yet
         self._thread = _Thread(fn, wants_progress=on_progress is not None)
         self._thread.succeeded.connect(self._handle_success)
         self._thread.failed.connect(self._handle_error)
@@ -75,11 +76,13 @@ class _Job(QObject):
 
     @Slot(object)
     def _handle_success(self, result):
+        self._delivered = True
         if self._on_success is not None:
             self._on_success(result)
 
     @Slot(str)
     def _handle_error(self, message):
+        self._delivered = True
         if self._on_error is not None:
             self._on_error(message)
 
@@ -106,5 +109,9 @@ def run_in_background(fn, on_success=None, on_error=None, on_progress=None):
 
 
 def long_task_running() -> bool:
-    """Whether a task that reports progress (a backup or restore) is in flight."""
-    return any(job._on_progress is not None for job in _active)
+    """
+    Whether a task that reports progress (a backup or restore) is in flight.
+    A task stops counting once its result has been delivered, so code reacting
+    to a finished backup can start the next one straight away.
+    """
+    return any(job._on_progress is not None and not job._delivered for job in _active)
