@@ -77,3 +77,12 @@ class ActivityPageTests(GuiTestCase):
             ApiClient(api_url(self)).login(EMAIL, "wrong-password-123")
         self.load()
         self.assertNotIn("127.0.0.1", str(self.rows()))
+
+    def test_a_long_message_is_readable_in_full_from_its_tooltip(self):
+        long_text = "Could not gather enough intact fragments: " + "detail " * 30
+        self.page._entries = [
+            {"id": 1, "action": "recovery_failed", "description": long_text, "level": "error", "created_at": "2026-09-20T12:00:00Z"}
+        ]
+        self.page._populate()
+        self.assertEqual(self.page.table.item(0, 3).toolTip(), long_text)
+        self.assertEqual(self.page.table.item(0, 2).text(), "Restore failed")

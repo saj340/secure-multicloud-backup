@@ -145,3 +145,10 @@ class ActivityApiTests(TestCase):
         self.assertEqual(len(self.client.get("/api/monitoring/activity/?limit=0").data), 1)
         self.assertEqual(len(self.client.get("/api/monitoring/activity/?limit=abc").data), 5)
         self.assertEqual(len(self.client.get("/api/monitoring/activity/?limit=99999").data), 5)
+
+    def test_purely_mechanical_per_file_events_are_left_out_but_failures_stay(self):
+        for action in ("file_version_stored", "recovery_started", "recovery_completed", "recovery_failed", "file_version_failed"):
+            ActivityLog.objects.create(user=self.user, action=action)
+        shown = [row["action"] for row in self.client.get("/api/monitoring/activity/").data]
+        self.assertEqual(sorted(shown), ["file_version_failed", "recovery_completed", "recovery_failed"])
+        self.assertEqual(ActivityLog.objects.count(), 5)  # still kept as an audit trail

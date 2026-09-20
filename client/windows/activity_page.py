@@ -34,7 +34,14 @@ EVENT_LABELS = {
     "provider_unreachable": "Provider unreachable",
     "provider_recovered": "Provider reachable again",
     "backup_run_started": "Backup started",
-    "recovery_started": "Restore started",
+    "backup_run_completed": "Backup finished",
+    "backup_run_failed": "Backup failed",
+    "file_version_failed": "File not backed up",
+    "recovery_completed": "File restored",
+    "recovery_failed": "Restore failed",
+    "provider_reconnected": "Provider reconnected",
+    "scheduled_backup_completed": "Scheduled backup finished",
+    "scheduled_backup_failed": "Scheduled backup failed",
 }
 
 LEVEL_DISPLAY = {
@@ -170,6 +177,8 @@ class ActivityPage(QWidget):
                 item = QTableWidgetItem(text)
                 if column == 1:
                     item.setForeground(QBrush(QColor(level_color)))
+                if column == 3:
+                    item.setToolTip(text)  # a long message is cut off in the table
                 self.table.setItem(row, column, item)
 
     def _show(self, message, style):

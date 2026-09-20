@@ -122,8 +122,10 @@ data. Object ids belonging to someone else return "not found".
   were not found at the new location), and *changes* in reachability (a warning when
   one becomes unreachable, an info entry when it recovers; repeated checks of an
   unchanged provider add nothing).
-- **Backups:** runs started and finished, recoveries started, completed and failed,
-  schedule changes.
+- **Backups:** runs started and finished, files restored or failed to restore, schedule
+  runs and changes. (The per-file "stored" and "restore started" entries are kept in the
+  database as an audit trail but hidden from the Activity screen, so a large backup
+  doesn't bury everything else.)
 
 Passwords, tokens and provider credentials are never written to the log. A failed
 sign-in is logged identically whether or not the account exists, so the log write

@@ -3,6 +3,15 @@
 Total time about 12 minutes. Every step says what to click, what to say, and what
 the audience should see. Rehearse it once end to end the day before.
 
+## The day before: run the automated rehearsal
+
+With the server running, `python tools/rehearse_demo.py` performs every step of this
+script through the same client code the app uses (backup, restore with hash comparison,
+a provider down, a tampered fragment, two providers down, reconnect, schedule, activity)
+and prints PASS or FAIL for each claim. All 22 checks should pass. It does not replace a
+run-through with the real screens, but it tells you the system itself is healthy.
+It creates a throwaway account and leaves its work files in your temp folder.
+
 ## Before the audience arrives
 
 1. Server terminal (venv active):
@@ -61,10 +70,13 @@ the audience should see. Rehearse it once end to end the day before.
 ## Part 5: The strong demo: a provider goes down (2 minutes)
 
 - In File Explorer **rename** `provider-b` to `provider-b-offline`.
+- In **Cloud Providers**, select `provider-b` and click **Check**. Its status turns to
+  *Error*. (The list does not notice by itself: it only looks when you press Check, so
+  skip this step and it will still say Connected.)
 - In **Recover Files**, recover the same file again.
 - Say: "One provider is gone. The missing piece is rebuilt from the other data piece
   and the parity piece. Same result." Compare the hashes again.
-- Rename the folder back.
+- Rename the folder back and press **Check** again; the status returns to *Connected*.
 - Optional extra: in **Cloud Providers** select a provider, **Disconnect** it, then
   **Reconnect…** it with the same folder. The app reports that it found the stored
   backup pieces again. Reconnecting with a different, empty folder instead shows the
@@ -98,7 +110,7 @@ the audience should see. Rehearse it once end to end the day before.
 | Why XOR parity and not replication? | No provider holds a whole file, and the storage overhead is 1/(n-1) instead of 100% or more. |
 | Why not use an existing backup tool? | The project's point is the integration: local encryption, multi-provider distribution, integrity verification and recovery under failure. |
 | Did you write your own encryption? | No. Fernet from the `cryptography` library and Django's password hasher. The custom part is the design around them. |
-| Is it tested? | 373 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
+| Is it tested? | 375 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
 | What would you do next? | PostgreSQL, a background service for schedules, Reed-Solomon, key management service. |
 
 ## If something goes wrong

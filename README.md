@@ -160,3 +160,6 @@ same client, so it still needs a server to talk to: start one with
 pip install -r requirements-dev.txt   # adds moto, a local fake S3 server the tests use
 python manage.py test                 # a minute or two; needs no cloud account
 ```
+
+With the server running, `python tools/rehearse_demo.py` runs the whole demo script end to
+end against it and reports PASS or FAIL for each step.
