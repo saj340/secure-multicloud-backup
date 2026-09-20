@@ -21,6 +21,12 @@ desktop application (no browser involved) that talks to it.
 Auth uses DRF token authentication (not browser sessions), since the desktop
 client has no cookie store — the client sends `Authorization: Token <key>`.
 
+## Report and defense material
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): components, flows, design decisions with alternatives, known limitations
+- [docs/SECURITY.md](docs/SECURITY.md): each threat, the defence, and where the code and tests are
+- [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md): a rehearsed 12-minute demo and likely examiner questions
+
 ## Setup
 
 The virtual environment lives **outside** this folder, at `C:\venvs\smcb`, not
