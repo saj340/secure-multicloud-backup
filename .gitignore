@@ -8,3 +8,7 @@ staticfiles/
 .DS_Store
 server.log
 certs/
+
+# Packaged client
+dist/
+build/

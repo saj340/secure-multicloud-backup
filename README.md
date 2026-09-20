@@ -132,6 +132,28 @@ An endpoint URL supplied for S3-compatible storage must be `https` and resolve t
 public addresses outside development (`ALLOW_PRIVATE_S3_ENDPOINTS`), so a user can't
 aim the server at internal services (server-side request forgery).
 
+## Packaged desktop client (.exe)
+
+```bash
+pip install -r requirements-dev.txt
+python build_client.py
+```
+
+This produces `dist/SecureBackup/SecureBackup.exe`, which runs without Python installed
+(about 125 MB with its support files; move the whole `SecureBackup` folder). It is the
+same client, so it still needs a server to talk to: start one with
+`python -m config.securerun`, or set `BACKUP_API_URL` for another.
+
+- The build runs in `C:\build\smcb` for the same long-path reason as the virtual
+  environment, then copies the result into `dist/`.
+- The development CA certificate (`certs/dev-ca.pem`) is copied next to the `.exe`,
+  and the program trusts it for the local machine only, exactly like the source version.
+  A build meant for a real server needs no certificate file, because the server's
+  certificate comes from a public CA.
+- The executable is not code-signed, so Windows SmartScreen may warn on first launch.
+- Checked by launching the built program against the real HTTPS server: it logged in
+  and loaded the dashboard, backups and schedules over verified TLS.
+
 ## Tests
 
 ```bash

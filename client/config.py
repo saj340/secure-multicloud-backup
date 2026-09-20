@@ -11,11 +11,21 @@ http is only accepted for the local machine itself.
 
 import ipaddress
 import os
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
 DEFAULT_API_URL = "https://127.0.0.1:8443/api"
-DEV_CA = Path(__file__).resolve().parent.parent / "certs" / "dev-ca.pem"
+
+
+def _dev_ca_path() -> Path:
+    if getattr(sys, "frozen", False):
+        # Packaged app: the development CA sits beside the .exe, not in a source tree.
+        return Path(sys.executable).resolve().parent / "dev-ca.pem"
+    return Path(__file__).resolve().parent.parent / "certs" / "dev-ca.pem"
+
+
+DEV_CA = _dev_ca_path()
 
 
 def api_url() -> str:
