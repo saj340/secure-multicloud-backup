@@ -39,3 +39,15 @@ class DeploymentChecklistTests(SimpleTestCase):
         result = self.run_check(DEBUG="True")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("DEBUG", result.stdout + result.stderr)
+
+
+class PasswordStorageTests(SimpleTestCase):
+    def test_the_real_settings_keep_djangos_strong_default_password_hasher(self):
+        # The test runner swaps in a fast hasher, but only for tests. Real settings
+        # must never override PASSWORD_HASHERS, or Django's PBKDF2 default is lost.
+        from django.conf import global_settings
+
+        from . import settings as real_settings
+
+        self.assertFalse(hasattr(real_settings, "PASSWORD_HASHERS"))
+        self.assertTrue(global_settings.PASSWORD_HASHERS[0].endswith("PBKDF2PasswordHasher"))

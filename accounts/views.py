@@ -1,3 +1,5 @@
+import math
+
 from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
@@ -11,6 +13,7 @@ from rest_framework.views import APIView
 
 from monitoring.service import log_activity
 
+from . import ratelimit
 from .models import User
 from .serializers import (
     ChangePasswordSerializer,
@@ -23,10 +26,30 @@ from .serializers import (
 )
 
 
+def _client_ip(request) -> str:
+    # Behind a reverse proxy this is the proxy's address; see the README.
+    return request.META.get("REMOTE_ADDR", "unknown")
+
+
+def _too_many(seconds: int, what: str) -> Response:
+    minutes = max(1, math.ceil(seconds / 60))
+    response = Response(
+        {"detail": f"Too many {what}. Try again in {minutes} minute{'s' if minutes != 1 else ''}."},
+        status=status.HTTP_429_TOO_MANY_REQUESTS,
+    )
+    response["Retry-After"] = str(seconds)
+    return response
+
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        ip = _client_ip(request)
+        if wait := ratelimit.blocked_for(("register_ip", ip)):
+            return _too_many(wait, "sign-up attempts")
+        ratelimit.record("register_ip", ip)
+
         serializer = RegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
@@ -40,17 +63,26 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = authenticate(
-            request,
-            username=serializer.validated_data["email"],
-            password=serializer.validated_data["password"],
-        )
+        ip = _client_ip(request)
+        email = serializer.validated_data["email"].lower()
+        pair = f"{ip}|{email}"
+
+        # Checked before the password is, so a blocked guesser can't tell whether
+        # a guess was right.
+        if wait := ratelimit.blocked_for(("login_account", pair), ("login_ip", ip)):
+            return _too_many(wait, "failed login attempts")
+
+        user = authenticate(request, username=email, password=serializer.validated_data["password"])
         if user is None:
+            # An unknown email counts and answers exactly like a wrong password.
+            ratelimit.record("login_account", pair)
+            ratelimit.record("login_ip", ip)
             return Response(
                 {"detail": "Invalid email or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        ratelimit.reset("login_account", pair)
         # A fresh token every login, so its lifetime starts now and any earlier
         # session (another device, a stolen token) ends.
         Token.objects.filter(user=user).delete()
@@ -83,16 +115,23 @@ class ChangePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        user = request.user
+        who = str(user.pk)
+        # Someone holding a stolen token could otherwise guess the current password here.
+        if wait := ratelimit.blocked_for(("change_password_user", who)):
+            return _too_many(wait, "failed attempts")
+
         serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
 
-        user = request.user
         if not user.check_password(serializer.validated_data["current_password"]):
+            ratelimit.record("change_password_user", who)
             return Response(
                 {"detail": "Your current password is incorrect."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        ratelimit.reset("change_password_user", who)
         user.set_password(serializer.validated_data["new_password1"])
         user.save()
 
@@ -111,6 +150,15 @@ class PasswordResetRequestView(APIView):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data["email"].lower()
+        ip = _client_ip(request)
+
+        # Every request counts, whether or not the account exists, so the limit
+        # protects inboxes from being flooded without revealing who has an account.
+        checks = (("reset_request_email", email), ("reset_request_ip", ip))
+        if wait := ratelimit.blocked_for(*checks):
+            return _too_many(wait, "reset requests")
+        for scope, identifier in checks:
+            ratelimit.record(scope, identifier)
 
         try:
             user = User.objects.get(email=email)
@@ -143,23 +191,29 @@ class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        ip = _client_ip(request)
+        if wait := ratelimit.blocked_for(("reset_confirm_ip", ip)):
+            return _too_many(wait, "failed attempts")
+
         serializer = PasswordResetConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        error_response = Response(
-            {"detail": "Invalid or expired reset code."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        def refuse():
+            ratelimit.record("reset_confirm_ip", ip)
+            return Response(
+                {"detail": "Invalid or expired reset code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             uidb64, token = serializer.validated_data["code"].split(":", 1)
             uid = force_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(pk=uid)
         except (ValueError, TypeError, User.DoesNotExist):
-            return error_response
+            return refuse()
 
         if not default_token_generator.check_token(user, token):
-            return error_response
+            return refuse()
 
         user.set_password(serializer.validated_data["new_password1"])
         user.save()

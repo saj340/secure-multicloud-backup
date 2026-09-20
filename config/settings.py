@@ -150,6 +150,22 @@ from datetime import timedelta  # noqa: E402
 
 AUTH_TOKEN_LIFETIME = timedelta(hours=int(os.environ.get('AUTH_TOKEN_LIFETIME_HOURS', '12')))
 
+# Limits on operations that can be guessed at (see accounts/ratelimit.py):
+# (attempts allowed, window). Once used up, further attempts are refused with a 429
+# until the window that began with the first attempt has passed.
+RATE_LIMITS = {
+    'login_account': (5, timedelta(minutes=15)),         # failed logins per IP + email
+    'login_ip': (30, timedelta(minutes=15)),             # failed logins per IP, across accounts
+    'reset_request_email': (3, timedelta(hours=1)),      # reset codes requested for one email
+    'reset_request_ip': (10, timedelta(hours=1)),        # reset codes requested from one IP
+    'reset_confirm_ip': (10, timedelta(minutes=15)),     # wrong reset codes per IP
+    'change_password_user': (5, timedelta(minutes=15)),  # wrong current passwords per account
+    'register_ip': (20, timedelta(hours=1)),             # sign-ups per IP
+}
+
+# Only changes how `manage.py test` runs (a fast password hasher); see config/testrunner.py.
+TEST_RUNNER = 'config.testrunner.FastPasswordTestRunner'
+
 # Dev-only: prints "sent" emails to the console instead of using a real
 # mail server. Swap to an SMTP backend when this needs to work for real.
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

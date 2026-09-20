@@ -40,3 +40,18 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+
+class RateLimitCounter(models.Model):
+    """Attempts counted against one identifier in its current window (see ratelimit.py)."""
+
+    scope = models.CharField(max_length=64)
+    key = models.CharField(max_length=64, help_text="A hash of the identifier, never the identifier itself.")
+    count = models.PositiveIntegerField(default=0)
+    window_started = models.DateTimeField()
+
+    class Meta:
+        unique_together = ["scope", "key"]
+
+    def __str__(self):
+        return f"{self.scope}: {self.count}"

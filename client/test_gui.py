@@ -96,6 +96,14 @@ class GuiTestCase(LiveServerTestCase):
         self.api = ApiClient(api_url(self))
         self.api.register(EMAIL, "Gui Test", PASSWORD, PASSWORD)
         self.api.login(EMAIL, PASSWORD)
+        self.addCleanup(self.drain_background_jobs)
+
+    def drain_background_jobs(self):
+        # A request still in flight when this test's data is wiped would come back
+        # as a 401, and trip the "session expired" handler of whichever test runs next.
+        from . import workers
+
+        wait_until(lambda: not workers._active, timeout=10)
 
     def make_folder(self, name):
         folder = self.tmp / name

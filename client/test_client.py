@@ -103,6 +103,17 @@ class AuthTests(LiveServerTestCase):
         self.api.confirm_password_reset(code, new_password, new_password)
         self.assertEqual(self.api.login(EMAIL, new_password)["email"], EMAIL)
 
+    def test_too_many_failed_logins_are_refused_with_a_readable_message(self):
+        self.api.register(EMAIL, "Client Test", PASSWORD, PASSWORD)
+        for _ in range(5):
+            with self.assertRaises(ApiError):
+                self.api.login(EMAIL, "wrong-password")
+
+        with self.assertRaises(ApiError) as caught:
+            self.api.login(EMAIL, PASSWORD)  # even the right password is refused for now
+        self.assertEqual(caught.exception.status_code, 429)
+        self.assertIn("Too many failed login attempts", caught.exception.message)
+
 
 @override_settings(ALLOW_LOCAL_FOLDER_PROVIDERS=True)
 class ClientFlowTestCase(LiveServerTestCase):

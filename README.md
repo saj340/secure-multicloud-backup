@@ -81,6 +81,16 @@ redirect plain http to https.
   strength rules as registration (including "too similar to your email"), signs out
   every other session, and gives the app that made the change a fresh token.
 - Only the name is editable in the profile; the email is the login identity.
+- Guessable operations are rate limited (`RATE_LIMITS` in `config/settings.py`, code in
+  `accounts/ratelimit.py`): 5 failed logins per IP and email per 15 minutes (30 per IP
+  across accounts), 3 reset codes per email per hour, wrong reset codes, wrong current
+  passwords in Settings, and sign-ups. A blocked request gets a 429 with `Retry-After`,
+  and is refused before the password is checked, so a guesser can't learn whether a
+  guess was right. Unknown emails are counted and answered exactly like real ones.
+  Counters live in the database (hashed), so they survive restarts.
+- Limits are per client IP. Behind a reverse proxy every request appears to come from
+  the proxy, so it would need to pass the real client address through before this is
+  useful in production.
 
 ## Cloud providers
 
@@ -99,5 +109,5 @@ aim the server at internal services (server-side request forgery).
 
 ```bash
 pip install -r requirements-dev.txt   # adds moto, a local fake S3 server the tests use
-python manage.py test                 # takes a few minutes; needs no cloud account
+python manage.py test                 # a minute or two; needs no cloud account
 ```
