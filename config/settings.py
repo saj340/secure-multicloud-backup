@@ -159,5 +159,9 @@ MASTER_KEK = os.environ['MASTER_KEK']
 # directory it can write to, so the API only offers it in development.
 ALLOW_LOCAL_FOLDER_PROVIDERS = DEBUG
 
+# Likewise, an S3-compatible endpoint the user supplies is only allowed to be
+# plain http or a private/loopback address in development (see providers/endpoints.py).
+ALLOW_PRIVATE_S3_ENDPOINTS = DEBUG
+
 # Ciphertext arrives as one request body held in memory, so cap its size.
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024

@@ -22,12 +22,43 @@ from .adapters.base import (
     StorageAdapter,
 )
 from .adapters.local import LocalFolderAdapter
+from .adapters.s3 import S3Adapter
+from .endpoints import validate_endpoint_url
 from .models import CloudProvider
 
+
+def _local_folder(credentials):
+    return LocalFolderAdapter(credentials["path"])
+
+
+def _aws_s3(credentials):
+    # No endpoint is accepted here: AWS is always reached at its own addresses.
+    if not credentials["region"]:
+        raise ValueError("region")
+    return S3Adapter(
+        bucket=credentials["bucket"],
+        access_key_id=credentials["access_key_id"],
+        secret_access_key=credentials["secret_access_key"],
+        region=credentials["region"],
+    )
+
+
+def _s3_compatible(credentials):
+    endpoint_url = credentials["endpoint_url"]
+    validate_endpoint_url(endpoint_url)
+    return S3Adapter(
+        bucket=credentials["bucket"],
+        access_key_id=credentials["access_key_id"],
+        secret_access_key=credentials["secret_access_key"],
+        region=credentials.get("region"),
+        endpoint_url=endpoint_url,
+    )
+
+
 ADAPTER_FACTORIES = {
-    CloudProvider.ProviderType.LOCAL_FOLDER.value: lambda credentials: LocalFolderAdapter(
-        credentials["path"]
-    ),
+    CloudProvider.ProviderType.LOCAL_FOLDER.value: _local_folder,
+    CloudProvider.ProviderType.AWS_S3.value: _aws_s3,
+    CloudProvider.ProviderType.S3_COMPATIBLE.value: _s3_compatible,
 }
 
 
@@ -45,8 +76,8 @@ def _build_adapter(provider_type: str, credentials: dict) -> StorageAdapter:
         raise ProviderConfigurationError(f"Unsupported provider type: {provider_type!r}")
     try:
         return factory(credentials)
-    except KeyError as exc:
-        raise ProviderConfigurationError(f"Missing credential field: {exc}") from exc
+    except (KeyError, ValueError) as exc:
+        raise ProviderConfigurationError(f"Missing or invalid credential: {exc}") from exc
 
 
 def set_credentials(provider: CloudProvider, credentials: dict) -> None:

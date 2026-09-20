@@ -12,11 +12,33 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-# What each provider type needs from the user: (credential key, label, kind).
-# kind is "folder" (with a Browse button), "text", or "secret" (hidden).
-# Supporting a new provider type in the client is one new entry here.
+# What each provider type needs from the user: (credential key, label, kind,
+# required). kind is "folder" (with a Browse button), "text", or "secret"
+# (hidden). Supporting a new provider type in the client is one new entry here.
 CREDENTIAL_FIELDS = {
-    "local_folder": [("path", "Folder", "folder")],
+    "local_folder": [("path", "Folder", "folder", True)],
+    "aws_s3": [
+        ("bucket", "Bucket", "text", True),
+        ("region", "Region", "text", True),
+        ("access_key_id", "Access key ID", "text", True),
+        ("secret_access_key", "Secret access key", "secret", True),
+    ],
+    "s3_compatible": [
+        ("endpoint_url", "Endpoint URL", "text", True),
+        ("bucket", "Bucket", "text", True),
+        ("region", "Region (optional)", "text", False),
+        ("access_key_id", "Access key ID", "text", True),
+        ("secret_access_key", "Secret access key", "secret", True),
+    ],
+}
+
+PROVIDER_HINTS = {
+    "local_folder": "A folder on this computer, for testing and demos.",
+    "aws_s3": "An Amazon S3 bucket. Use an access key that can read and write that bucket.",
+    "s3_compatible": (
+        "Backblaze B2, Wasabi, Cloudflare R2, MinIO and other services that speak the S3 API. "
+        "The endpoint looks like https://s3.us-west-004.backblazeb2.com."
+    ),
 }
 
 FIXED_ROWS = 2  # provider type and display name; credential rows follow
@@ -26,7 +48,7 @@ class AddProviderDialog(QDialog):
     def __init__(self, provider_types, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Add cloud provider")
-        self.setMinimumWidth(520)
+        self.setMinimumWidth(560)
 
         self._inputs = {}
 
@@ -43,6 +65,10 @@ class AddProviderDialog(QDialog):
         self.form.addRow("Provider type", self.type_combo)
         self.form.addRow("Display name", self.name_input)
 
+        self.hint_label = QLabel("")
+        self.hint_label.setStyleSheet("color: #555555;")
+        self.hint_label.setWordWrap(True)
+
         self.error_label = QLabel("")
         self.error_label.setStyleSheet("color: #b00020;")
         self.error_label.setWordWrap(True)
@@ -56,6 +82,7 @@ class AddProviderDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(14)
+        layout.addWidget(self.hint_label)
         layout.addLayout(self.form)
         layout.addWidget(self.error_label)
         layout.addWidget(buttons)
@@ -68,7 +95,11 @@ class AddProviderDialog(QDialog):
             self.form.removeRow(FIXED_ROWS)
         self._inputs = {}
 
-        for key, label, kind in CREDENTIAL_FIELDS.get(self.type_combo.currentData(), []):
+        provider_type = self.type_combo.currentData()
+        self.hint_label.setText(PROVIDER_HINTS.get(provider_type, ""))
+        self.error_label.setText("")
+
+        for key, label, kind, _required in CREDENTIAL_FIELDS.get(provider_type, []):
             edit = QLineEdit()
             self._inputs[key] = edit
             if kind == "secret":
@@ -97,11 +128,16 @@ class AddProviderDialog(QDialog):
 
     def _accept_if_valid(self):
         provider_type, name, credentials = self.values()
+        required = {
+            key
+            for key, _label, _kind, is_required in CREDENTIAL_FIELDS.get(provider_type, [])
+            if is_required
+        }
         if provider_type is None:
             self.error_label.setText("No provider types are available.")
         elif not name:
             self.error_label.setText("Enter a display name.")
-        elif not all(credentials.values()):
-            self.error_label.setText("Fill in every field.")
+        elif not all(credentials[key] for key in required):
+            self.error_label.setText("Fill in every field that isn't marked optional.")
         else:
             self.accept()

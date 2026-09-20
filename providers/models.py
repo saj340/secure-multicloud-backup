@@ -8,8 +8,7 @@ class CloudProvider(models.Model):
     class ProviderType(models.TextChoices):
         LOCAL_FOLDER = "local_folder", "Local folder"
         AWS_S3 = "aws_s3", "Amazon S3"
-        BACKBLAZE_B2 = "backblaze_b2", "Backblaze B2"
-        AZURE_BLOB = "azure_blob", "Azure Blob Storage"
+        S3_COMPATIBLE = "s3_compatible", "S3-compatible storage"
 
     class Status(models.TextChoices):
         CONNECTED = "connected", "Connected"

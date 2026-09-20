@@ -46,3 +46,23 @@ python -m client.main           # launches the desktop client
 ```
 
 Database is SQLite for now; will move to PostgreSQL once the data model is in place.
+
+## Cloud providers
+
+| Type | Notes |
+|---|---|
+| Local folder | Development and demos only. The API offers it only when `ALLOW_LOCAL_FOLDER_PROVIDERS` is on (defaults to `DEBUG`). |
+| Amazon S3 | Bucket, region, access key ID and secret. Always reached at AWS's own addresses. |
+| S3-compatible storage | Backblaze B2, Wasabi, Cloudflare R2, MinIO and others: endpoint URL, bucket, keys. |
+
+Provider credentials are encrypted with the master key before they are stored.
+An endpoint URL supplied for S3-compatible storage must be `https` and resolve to
+public addresses outside development (`ALLOW_PRIVATE_S3_ENDPOINTS`), so a user can't
+aim the server at internal services (server-side request forgery).
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt   # adds moto, a local fake S3 server the tests use
+python manage.py test                 # takes a few minutes; needs no cloud account
+```
