@@ -92,7 +92,7 @@ the audience should see. Rehearse it once end to end the day before.
 | Why XOR parity and not replication? | No provider holds a whole file, and the storage overhead is 1/(n-1) instead of 100% or more. |
 | Why not use an existing backup tool? | The project's point is the integration: local encryption, multi-provider distribution, integrity verification and recovery under failure. |
 | Did you write your own encryption? | No. Fernet from the `cryptography` library and Django's password hasher. The custom part is the design around them. |
-| Is it tested? | 333 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
+| Is it tested? | 341 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
 | What would you do next? | PostgreSQL, a background service for schedules, reconnecting providers, Reed-Solomon, key management service. |
 
 ## If something goes wrong

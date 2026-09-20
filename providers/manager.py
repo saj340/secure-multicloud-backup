@@ -13,6 +13,8 @@ import json
 from django.conf import settings
 from django.utils import timezone
 
+from monitoring.models import ActivityLog
+from monitoring.service import log_activity
 from protection.crypto import DecryptionError, decrypt_with_master_key, encrypt_with_master_key
 
 from .adapters.base import (
@@ -117,6 +119,12 @@ def connect_provider(user, provider_type: str, display_name: str, credentials: d
     )
     set_credentials(provider, credentials)
     provider.save()
+    log_activity(
+        user,
+        "provider_connected",
+        f"Connected {provider.get_provider_type_display()} '{display_name}'.",
+        provider_id=provider.id,
+    )
     return provider
 
 
@@ -130,9 +138,19 @@ def check_provider(provider: CloudProvider) -> bool:
     except ProviderError:
         healthy = False
 
+    was_healthy = provider.status == CloudProvider.Status.CONNECTED
     provider.status = CloudProvider.Status.CONNECTED if healthy else CloudProvider.Status.ERROR
     provider.last_checked_at = timezone.now()
     provider.save(update_fields=["status", "last_checked_at"])
+    # Only a change is worth a log entry, or every dashboard refresh would add one.
+    if healthy != was_healthy:
+        log_activity(
+            provider.user,
+            "provider_recovered" if healthy else "provider_unreachable",
+            f"'{provider.display_name}' is {'reachable again' if healthy else 'unreachable'}.",
+            level=ActivityLog.Level.INFO if healthy else ActivityLog.Level.WARNING,
+            provider_id=provider.id,
+        )
     return healthy
 
 
@@ -145,3 +163,9 @@ def disconnect_provider(provider: CloudProvider) -> None:
     provider.encrypted_credentials = ""
     provider.status = CloudProvider.Status.DISCONNECTED
     provider.save(update_fields=["encrypted_credentials", "status"])
+    log_activity(
+        provider.user,
+        "provider_disconnected",
+        f"Disconnected '{provider.display_name}'.",
+        provider_id=provider.id,
+    )

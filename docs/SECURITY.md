@@ -114,10 +114,21 @@ data. Object ids belonging to someone else return "not found".
 
 ## 8. Auditability
 
-`ActivityLog` records backup runs, recoveries (started, completed, failed),
-schedule changes and password changes, with timestamps. It does not yet record
-sign-ins or provider connect/disconnect events; adding them is a small change and
-is listed as future work.
+`ActivityLog` records, with timestamps and a severity level:
+
+- **Accounts:** registration, sign-in, sign-out, failed sign-ins (a warning, with the
+  email and IP), password changes and password resets.
+- **Providers:** connected, disconnected, and *changes* in reachability (a warning when
+  one becomes unreachable, an info entry when it recovers; repeated checks of an
+  unchanged provider add nothing).
+- **Backups:** runs started and finished, recoveries started, completed and failed,
+  schedule changes.
+
+Passwords, tokens and provider credentials are never written to the log. A failed
+sign-in is logged identically whether or not the account exists, so the log write
+does not become a timing signal for finding accounts. Blocked (rate-limited) attempts
+are not logged individually, which keeps a guessing attack from flooding the log.
+There is no screen for reading the log yet; entries are visible in the Django admin.
 
 ## 9. What this design does not defend against
 

@@ -11,6 +11,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from monitoring.models import ActivityLog
 from monitoring.service import log_activity
 
 from . import ratelimit
@@ -53,6 +54,7 @@ class RegisterView(APIView):
         serializer = RegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        log_activity(user, "registered", "Account created.")
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -77,6 +79,16 @@ class LoginView(APIView):
             # An unknown email counts and answers exactly like a wrong password.
             ratelimit.record("login_account", pair)
             ratelimit.record("login_ip", ip)
+            # Logged the same way whether or not the account exists, so this path
+            # takes the same time either way and can't be used to find accounts.
+            log_activity(
+                User.objects.filter(email=email).first(),
+                "login_failed",
+                "Failed login attempt.",
+                level=ActivityLog.Level.WARNING,
+                email=email,
+                ip=ip,
+            )
             return Response(
                 {"detail": "Invalid email or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -87,6 +99,7 @@ class LoginView(APIView):
         # session (another device, a stolen token) ends.
         Token.objects.filter(user=user).delete()
         token = Token.objects.create(user=user)
+        log_activity(user, "login", "Signed in.", ip=ip)
         return Response({"token": token.key, "user": UserSerializer(user).data})
 
 
@@ -94,6 +107,7 @@ class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        log_activity(request.user, "logout", "Signed out.")
         request.user.auth_token.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -221,5 +235,6 @@ class PasswordResetConfirmView(APIView):
         # Resetting the password invalidates any existing session for this
         # user, in case the old token had been compromised.
         Token.objects.filter(user=user).delete()
+        log_activity(user, "password_reset", "Password reset with an emailed code.")
 
         return Response({"detail": "Password has been reset. You can now log in."})
