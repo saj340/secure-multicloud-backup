@@ -1,5 +1,4 @@
 from datetime import datetime
-from pathlib import Path
 
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
@@ -9,8 +8,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
-    QPlainTextEdit,
-    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -20,24 +17,13 @@ from client.api_client import ApiClient
 from client.backup_service import run_backup
 from client.workers import run_in_background
 
+from .progress_panel import ERROR_STYLE, WARN_STYLE, ProgressPanel
+
 MIN_PROVIDERS = 2
-STAGE_TEXT = {
-    "preparing": "Preparing…",
-    "protecting": "Protecting — encrypting on this device",
-    "uploading": "Uploading the encrypted data",
-    "completed": "Completed",
-}
-OK_STYLE = "color: #1b7f3b;"
-ERROR_STYLE = "color: #b00020;"
-WARN_STYLE = "color: #b26a00;"
 
 
 def default_backup_name():
     return f"Backup {datetime.now():%Y-%m-%d %H:%M}"
-
-
-def _files(count):
-    return f"{count} file" if count == 1 else f"{count} files"
 
 
 class NewBackupPage(QWidget):
@@ -105,24 +91,7 @@ class NewBackupPage(QWidget):
         self.start_button.setMinimumHeight(40)
         self.start_button.clicked.connect(self.start_backup)
 
-        self.stage_label = QLabel("")
-        self.stage_label.setFont(body_font)
-        self.file_label = QLabel("")
-        self.file_label.setFont(body_font)
-        self.file_label.setStyleSheet("color: #555555;")
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setTextVisible(False)
-        for widget in (self.stage_label, self.file_label, self.progress_bar):
-            widget.hide()
-
-        self.result_label = QLabel("")
-        self.result_label.setFont(body_font)
-        self.result_label.setWordWrap(True)
-
-        self.failures_box = QPlainTextEdit()
-        self.failures_box.setReadOnly(True)
-        self.failures_box.setMaximumHeight(120)
-        self.failures_box.hide()
+        self.panel = ProgressPanel()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
@@ -135,11 +104,7 @@ class NewBackupPage(QWidget):
         layout.addWidget(self.paths_list, 1)
         layout.addLayout(selection_buttons)
         layout.addWidget(self.start_button)
-        layout.addWidget(self.stage_label)
-        layout.addWidget(self.file_label)
-        layout.addWidget(self.progress_bar)
-        layout.addWidget(self.result_label)
-        layout.addWidget(self.failures_box)
+        layout.addWidget(self.panel)
 
         self._update_controls()
 
@@ -208,77 +173,31 @@ class NewBackupPage(QWidget):
         name = self.name_input.text().strip()
         paths = self.paths()
         if not name:
-            return self._show_result("Enter a name for this backup.", ERROR_STYLE)
+            return self.panel.show_message("Enter a name for this backup.", ERROR_STYLE)
         if not paths:
-            return self._show_result("Add at least one file or folder.", ERROR_STYLE)
+            return self.panel.show_message("Add at least one file or folder.", ERROR_STYLE)
 
         self._busy = True
         self._update_controls()
-        self._show_result("", OK_STYLE)
-        self.failures_box.hide()
-        self.stage_label.setText(STAGE_TEXT["preparing"])
-        self.file_label.setText("")
-        self.progress_bar.setRange(0, 0)  # busy indicator until the file count is known
-        for widget in (self.stage_label, self.file_label, self.progress_bar):
-            widget.show()
-
+        self.panel.start()
         run_in_background(
             lambda report: run_backup(self.api_client, name, paths, progress=report),
             on_success=self._finished,
             on_error=self._failed,
-            on_progress=self._progress,
+            on_progress=self.panel.progress,
         )
-
-    def _progress(self, stage, detail, done, total):
-        if stage in STAGE_TEXT:
-            self.stage_label.setText(STAGE_TEXT[stage])
-        if total:
-            self.progress_bar.setRange(0, total)
-            if stage in ("processed", "completed"):
-                self.progress_bar.setValue(done)
-        if stage in ("protecting", "uploading") and total:
-            self.file_label.setText(f"{Path(detail).name}  ({done + 1} of {total})")
 
     def _finished(self, result):
         self._busy = False
-        self.file_label.setText("")
-        total = len(result.succeeded) + len(result.failed)
-
-        if result.status == "completed":
-            self._show_result(
-                f"Backup completed: {_files(total)} encrypted and stored across your providers.",
-                OK_STYLE,
-            )
+        if self.panel.show_backup_result(result):
             self.paths_list.clear()
             self.name_input.setText(default_backup_name())
-        else:
-            if result.failed:
-                message = (
-                    f"Backup finished with problems: {len(result.failed)} of {_files(total)} "
-                    "could not be backed up."
-                )
-                self.failures_box.setPlainText(
-                    "\n".join(f"{path}\n    {reason}" for path, reason in result.failed.items())
-                )
-                self.failures_box.show()
-            else:
-                message = "The server reported this backup as failed."
-            self.stage_label.setText("Finished with problems")
-            self._show_result(message, ERROR_STYLE)
         self._update_controls()
 
     def _failed(self, message):
         self._busy = False
-        for widget in (self.stage_label, self.file_label, self.progress_bar):
-            widget.hide()
-        self._show_result(message, ERROR_STYLE)
+        self.panel.show_failure(message)
         self._update_controls()
-
-    # -------------------------------------------------------------- state
-
-    def _show_result(self, message, style):
-        self.result_label.setStyleSheet(style)
-        self.result_label.setText(message)
 
     def _update_controls(self):
         idle = not self._busy

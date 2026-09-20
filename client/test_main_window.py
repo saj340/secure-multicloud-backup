@@ -67,3 +67,27 @@ class InterruptingATaskTests(GuiTestCase):
             self.window.logout_button.click()
         self.assertTrue(wait_until(lambda: self.logged_out))
         self.assertIsNone(self.api.token)
+
+
+class NavigationTests(GuiTestCase):
+    def test_every_screen_is_listed_in_order_and_opens_without_error(self):
+        window = MainWindow(self.api)
+        self.addCleanup(window.deleteLater)
+        window.set_user(self.api.me())
+
+        names = [window.sidebar.item(row).text() for row in range(window.sidebar.count())]
+        self.assertEqual(
+            names,
+            ["Dashboard", "New Backup", "Backup History", "Recover Files", "Cloud Providers"],
+        )
+
+        for row in range(len(names)):
+            window.sidebar.setCurrentRow(row)
+            self.assertEqual(window.pages.currentIndex(), row)
+        self.assertTrue(
+            wait_until(
+                lambda: not (window.history._busy or window.recover._busy or window.providers._busy)
+            )
+        )
+        for page in (window.history, window.recover, window.providers):
+            self.assertEqual(page.status_label.text(), "")

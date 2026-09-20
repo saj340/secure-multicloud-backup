@@ -41,6 +41,11 @@ def collect_files(paths) -> list[Path]:
     return list(dict.fromkeys(files))
 
 
+def load_backups(api: ApiClient) -> list[dict]:
+    """Every backup job with its files and their versions, newest job first."""
+    return [api.get_job(job["id"]) for job in api.list_jobs()]
+
+
 def run_backup(api: ApiClient, name: str, paths, progress=None) -> BackupResult:
     _report(progress, "preparing", "")
     files = collect_files(paths)

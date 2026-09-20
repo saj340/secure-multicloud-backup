@@ -75,16 +75,17 @@ class NewBackupPageTests(GuiTestCase):
         self.page.start_backup()
         self.finish()
 
-        self.assertIn("completed", self.page.result_label.text())
-        self.assertIn("2 files", self.page.result_label.text())
-        self.assertEqual(
-            (self.page.progress_bar.value(), self.page.progress_bar.maximum()), (2, 2)
-        )
+        panel = self.page.panel
+        self.assertIn("completed", panel.result_label.text())
+        self.assertIn("2 files", panel.result_label.text())
+        self.assertEqual((panel.progress_bar.value(), panel.progress_bar.maximum()), (2, 2))
         self.assertEqual(self.page.paths(), [])
         self.assertTrue(self.page.name_input.text().startswith("Backup "))
 
         jobs = self.api.list_jobs()
-        self.assertEqual([(j["name"], j["status"], j["file_count"]) for j in jobs], [("docs", "completed", 2)])
+        self.assertEqual(
+            [(j["name"], j["status"], j["file_count"]) for j in jobs], [("docs", "completed", 2)]
+        )
         stored = [p for f in self.tmp.glob("provider*") for p in f.rglob("*.bin")]
         self.assertEqual(len(stored), 6)
 
@@ -104,10 +105,11 @@ class NewBackupPageTests(GuiTestCase):
             self.page.start_backup()
             self.finish()
 
-        self.assertIn("1 of 2 files", self.page.result_label.text())
-        self.assertEqual(self.page.stage_label.text(), "Finished with problems")
-        self.assertFalse(self.page.failures_box.isHidden())
-        self.assertIn("simulated read error", self.page.failures_box.toPlainText())
+        panel = self.page.panel
+        self.assertIn("1 of 2 files", panel.result_label.text())
+        self.assertEqual(panel.stage_label.text(), "Finished with problems")
+        self.assertFalse(panel.failures_box.isHidden())
+        self.assertIn("simulated read error", panel.failures_box.toPlainText())
         self.assertEqual(self.page.paths(), [str(self.docs)])
 
     def test_a_missing_path_is_reported_and_creates_no_job(self):
@@ -118,23 +120,24 @@ class NewBackupPageTests(GuiTestCase):
         self.page.start_backup()
         self.finish()
 
-        self.assertIn("Not a file or folder", self.page.result_label.text())
+        self.assertIn("Not a file or folder", self.page.panel.result_label.text())
         self.assertEqual(self.api.list_jobs(), [])
 
     def test_starting_without_a_name_or_files_explains_why(self):
         self.page.name_input.setText("  ")
         self.page.start_backup()
-        self.assertIn("Enter a name", self.page.result_label.text())
+        self.assertIn("Enter a name", self.page.panel.result_label.text())
 
         self.page.name_input.setText("docs")
         self.page.start_backup()
-        self.assertIn("at least one file", self.page.result_label.text())
+        self.assertIn("at least one file", self.page.panel.result_label.text())
         self.assertEqual(self.api.list_jobs(), [])
 
     def test_progress_updates_the_stage_the_current_file_and_the_bar(self):
-        self.page._progress("protecting", str(self.docs / "a.txt"), 0, 2)
-        self.assertTrue(self.page.stage_label.text().startswith("Protecting"))
-        self.assertEqual(self.page.file_label.text(), "a.txt  (1 of 2)")
+        panel = self.page.panel
+        panel.progress("protecting", str(self.docs / "a.txt"), 0, 2)
+        self.assertTrue(panel.stage_label.text().startswith("Protecting"))
+        self.assertEqual(panel.file_label.text(), "a.txt  (1 of 2)")
 
-        self.page._progress("processed", str(self.docs / "a.txt"), 1, 2)
-        self.assertEqual((self.page.progress_bar.value(), self.page.progress_bar.maximum()), (1, 2))
+        panel.progress("processed", str(self.docs / "a.txt"), 1, 2)
+        self.assertEqual((panel.progress_bar.value(), panel.progress_bar.maximum()), (1, 2))

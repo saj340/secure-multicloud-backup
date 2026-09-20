@@ -14,8 +14,10 @@ from client.api_client import ApiClient
 from client.workers import long_task_running, run_in_background
 
 from .dashboard_page import DashboardPage
+from .history_page import HistoryPage
 from .new_backup_page import NewBackupPage
 from .providers_page import ProvidersPage
+from .recover_page import RecoverPage
 
 
 class MainWindow(QWidget):
@@ -25,8 +27,8 @@ class MainWindow(QWidget):
         self.on_logout = on_logout
 
         self.setWindowTitle("Secure Multi-Cloud Backup")
-        self.resize(980, 620)
-        self.setMinimumSize(820, 520)
+        self.resize(1040, 700)
+        self.setMinimumSize(900, 600)
 
         title_font = QFont()
         title_font.setPointSize(13)
@@ -53,10 +55,14 @@ class MainWindow(QWidget):
 
         self.dashboard = DashboardPage(api_client)
         self.new_backup = NewBackupPage(api_client)
+        self.history = HistoryPage(api_client)
+        self.recover = RecoverPage(api_client)
         self.providers = ProvidersPage(api_client)
         self._pages = [
             ("Dashboard", self.dashboard),
             ("New Backup", self.new_backup),
+            ("Backup History", self.history),
+            ("Recover Files", self.recover),
             ("Cloud Providers", self.providers),
         ]
 
