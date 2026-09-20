@@ -3,9 +3,12 @@ Client-side backup and restore: reads files, encrypts them locally, and
 talks to the server through ApiClient. No GUI code lives here, so the
 windows stay thin and this can be tested on its own.
 
-`progress`, where accepted, is an optional callable(stage, detail) so a
-window can show Preparing -> Protecting -> Uploading -> Completed (and
-Downloading -> Decrypting -> Completed when restoring).
+`progress`, where accepted, is an optional callable(stage, detail, done,
+total) so a window can show what is happening. Backing up reports
+preparing, then for each file protecting and uploading (done = files
+finished so far, total = files in the run) and processed once that file
+is finished either way, then completed. Restoring reports downloading,
+decrypting and completed, without counts.
 """
 
 import os
@@ -89,33 +92,37 @@ def restore_version(
 
 def _run_job(api: ApiClient, job: dict, progress) -> BackupResult:
     api.begin_job(job["id"])
+    files = job["files"]
+    total = len(files)
     succeeded, failed = [], {}
-    for file in job["files"]:
+    for index, file in enumerate(files):
+        path = file["original_path"]
         try:
-            _backup_file(api, file, progress)
-            succeeded.append(file["original_path"])
+            _backup_file(api, file, progress, index, total)
+            succeeded.append(path)
         except (OSError, ApiError) as exc:
             # One bad file shouldn't abort the rest; the server marks the run failed.
-            failed[file["original_path"]] = str(exc)
+            failed[path] = str(exc)
+        _report(progress, "processed", path, index + 1, total)
 
     finished = api.finish_job(job["id"])
-    _report(progress, "completed", "")
+    _report(progress, "completed", "", total, total)
     return BackupResult(
         job_id=job["id"], status=finished["status"], succeeded=succeeded, failed=failed
     )
 
 
-def _backup_file(api: ApiClient, file: dict, progress) -> None:
+def _backup_file(api: ApiClient, file: dict, progress, index: int, total: int) -> None:
     path = Path(file["original_path"])
-    _report(progress, "protecting", str(path))
+    _report(progress, "protecting", str(path), index, total)
     plaintext = path.read_bytes()
     version, data_key = api.start_version(file["id"], path.name, len(plaintext))
     ciphertext = encrypt(plaintext, data_key)
 
-    _report(progress, "uploading", str(path))
+    _report(progress, "uploading", str(path), index, total)
     api.upload_ciphertext(version["id"], ciphertext)
 
 
-def _report(progress, stage: str, detail: str) -> None:
+def _report(progress, stage: str, detail: str, done=None, total=None) -> None:
     if progress is not None:
-        progress(stage, detail)
+        progress(stage, detail, done, total)

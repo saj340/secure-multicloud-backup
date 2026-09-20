@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
+    QMessageBox,
     QPushButton,
     QStackedWidget,
     QVBoxLayout,
@@ -10,9 +11,10 @@ from PySide6.QtWidgets import (
 )
 
 from client.api_client import ApiClient
-from client.workers import run_in_background
+from client.workers import long_task_running, run_in_background
 
 from .dashboard_page import DashboardPage
+from .new_backup_page import NewBackupPage
 from .providers_page import ProvidersPage
 
 
@@ -50,8 +52,13 @@ class MainWindow(QWidget):
         header.addWidget(self.logout_button)
 
         self.dashboard = DashboardPage(api_client)
+        self.new_backup = NewBackupPage(api_client)
         self.providers = ProvidersPage(api_client)
-        self._pages = [("Dashboard", self.dashboard), ("Cloud Providers", self.providers)]
+        self._pages = [
+            ("Dashboard", self.dashboard),
+            ("New Backup", self.new_backup),
+            ("Cloud Providers", self.providers),
+        ]
 
         self.pages = QStackedWidget()
         self.sidebar = QListWidget()
@@ -87,7 +94,29 @@ class MainWindow(QWidget):
         self.pages.setCurrentIndex(index)
         self._pages[index][1].refresh()
 
+    def closeEvent(self, event):
+        if self._confirm_interrupting_task("Closing the app"):
+            event.accept()
+        else:
+            event.ignore()
+
+    def _confirm_interrupting_task(self, action):
+        """Stopping a backup part-way leaves it incomplete, so ask before doing it."""
+        if not long_task_running():
+            return True
+        answer = QMessageBox.question(
+            self,
+            "Backup in progress",
+            f"A backup or restore is still running. {action} now will stop it part-way "
+            "and leave it incomplete.\n\nDo you want to continue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return answer == QMessageBox.StandardButton.Yes
+
     def _logout(self):
+        if not self._confirm_interrupting_task("Logging out"):
+            return
         self.logout_button.setEnabled(False)
 
         def done(_result):

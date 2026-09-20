@@ -140,14 +140,21 @@ class ClientFlowTestCase(LiveServerTestCase):
 
 class BackupAndRestoreTests(ClientFlowTestCase):
     def test_backup_and_restore_round_trip(self):
-        stages = []
-        result = run_backup(self.api, "docs", [self.source], progress=lambda s, d: stages.append(s))
+        stages, processed = [], []
+
+        def progress(stage, detail, done, total):
+            stages.append(stage)
+            if stage == "processed":
+                processed.append((done, total))
+
+        result = run_backup(self.api, "docs", [self.source], progress=progress)
 
         self.assertEqual(result.status, "completed")
         self.assertEqual(result.failed, {})
         self.assertEqual(len(result.succeeded), 2)
         self.assertEqual((stages[0], stages[-1]), ("preparing", "completed"))
         self.assertLess(stages.index("protecting"), stages.index("uploading"))
+        self.assertEqual(processed, [(1, 2), (2, 2)])
 
         stored = [p for folder in self.folders for p in folder.rglob("*.bin")]
         self.assertEqual(len(stored), 6)

@@ -65,6 +65,26 @@ class BackgroundTests(SimpleTestCase):
         self.assertTrue(wait_until(lambda: len(messages) == 2))
         self.assertEqual(sorted(messages), ["Server said no", "bad value"])
 
+    def test_progress_updates_arrive_in_order_on_the_ui_thread(self):
+        updates = []
+
+        def work(report):
+            for step in range(3):
+                report("step", step)
+            return "done"
+
+        run_in_background(
+            work,
+            on_success=lambda result: updates.append(("result", result)),
+            on_progress=lambda stage, step: updates.append((stage, step, threading.get_ident())),
+        )
+        self.assertTrue(wait_until(lambda: any(u[0] == "result" for u in updates)))
+        self.assertEqual(
+            [u[:2] for u in updates],
+            [("step", 0), ("step", 1), ("step", 2), ("result", "done")],
+        )
+        self.assertEqual({u[2] for u in updates if u[0] == "step"}, {threading.get_ident()})
+
 
 @override_settings(ALLOW_LOCAL_FOLDER_PROVIDERS=True)
 class GuiTestCase(LiveServerTestCase):
