@@ -118,7 +118,8 @@ data. Object ids belonging to someone else return "not found".
 
 - **Accounts:** registration, sign-in, sign-out, failed sign-ins (a warning, with the
   email and IP), password changes and password resets.
-- **Providers:** connected, disconnected, and *changes* in reachability (a warning when
+- **Providers:** connected, disconnected, reconnected (a warning if stored fragments
+  were not found at the new location), and *changes* in reachability (a warning when
   one becomes unreachable, an info entry when it recovers; repeated checks of an
   unchanged provider add nothing).
 - **Backups:** runs started and finished, recoveries started, completed and failed,

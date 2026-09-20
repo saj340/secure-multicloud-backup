@@ -35,6 +35,7 @@ class ProvidersPage(QWidget):
         self.api_client = api_client
         self._busy = False
         self._providers = {}
+        self._after_reload = None  # (message, is_error) to show once the list has reloaded
 
         title_font = QFont()
         title_font.setPointSize(16)
@@ -65,19 +66,28 @@ class ProvidersPage(QWidget):
         self.add_button = QPushButton("Add provider…")
         self.check_button = QPushButton("Check status")
         self.disconnect_button = QPushButton("Disconnect")
+        self.reconnect_button = QPushButton("Reconnect…")
         self.refresh_button = QPushButton("Refresh")
-        for button in (self.add_button, self.check_button, self.disconnect_button, self.refresh_button):
+        for button in (
+            self.add_button,
+            self.check_button,
+            self.disconnect_button,
+            self.reconnect_button,
+            self.refresh_button,
+        ):
             button.setFont(body_font)
             button.setMinimumHeight(34)
         self.add_button.clicked.connect(self.add_provider)
         self.check_button.clicked.connect(self.check_selected)
         self.disconnect_button.clicked.connect(self.disconnect_selected)
+        self.reconnect_button.clicked.connect(self.reconnect_selected)
         self.refresh_button.clicked.connect(self.refresh)
 
         buttons = QHBoxLayout()
         buttons.addWidget(self.add_button)
         buttons.addWidget(self.check_button)
         buttons.addWidget(self.disconnect_button)
+        buttons.addWidget(self.reconnect_button)
         buttons.addStretch()
         buttons.addWidget(self.refresh_button)
 
@@ -130,7 +140,8 @@ class ProvidersPage(QWidget):
             f"Disconnect {provider['display_name']}?\n\n"
             "Its saved credentials are removed from the server, and backups already stored "
             "there lose that copy. Your other providers still hold enough to restore them, "
-            "but with less protection until you back up again.",
+            "but with less protection until you back up again.\n\n"
+            "You can reconnect it later with the same credentials to get that copy back.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -141,6 +152,39 @@ class ProvidersPage(QWidget):
         self._start(
             "Disconnecting…", lambda: self.api_client.disconnect_provider(provider_id), self._changed
         )
+
+    def reconnect_selected(self):
+        provider = self.selected_provider()
+        if provider is None:
+            return
+        dialog = AddProviderDialog([], self, reconnecting=provider)
+        if dialog.type_combo.count() == 0:
+            self._show("This app can't configure that provider type.", error=True)
+        elif dialog.exec() == QDialog.DialogCode.Accepted:
+            self.reconnect_provider(provider["id"], dialog.values()[2])
+
+    def reconnect_provider(self, provider_id, credentials):
+        self._start(
+            "Reconnecting…",
+            lambda: self.api_client.reconnect_provider(provider_id, credentials),
+            self._reconnected,
+        )
+
+    def _reconnected(self, result):
+        missing, checked = result["fragments_missing"], result["fragments_checked"]
+        self._busy = False
+        if missing:
+            self._after_reload = (
+                f"Reconnected, but {missing} of {checked} stored backup pieces were not found "
+                "there. These credentials may lead to a different bucket or folder than the "
+                "one your backups were stored in.",
+                True,
+            )
+        elif checked:
+            self._after_reload = (f"Reconnected. Found all {checked} backup pieces checked.", False)
+        else:
+            self._after_reload = ("Reconnected.", False)
+        self.refresh()
 
     def selected_provider(self):
         rows = self.table.selectionModel().selectedRows()
@@ -159,7 +203,9 @@ class ProvidersPage(QWidget):
 
     def _loaded(self, providers):
         self._busy = False
-        self._show("")
+        message, is_error = self._after_reload or ("", False)
+        self._after_reload = None
+        self._show(message, error=is_error)
         self._populate(providers)
         self._update_buttons()
 
@@ -169,6 +215,7 @@ class ProvidersPage(QWidget):
 
     def _failed(self, message):
         self._busy = False
+        self._after_reload = None
         self._update_buttons()
         self._show(message, error=True)
 
@@ -222,6 +269,9 @@ class ProvidersPage(QWidget):
         self.refresh_button.setEnabled(not self._busy)
         self.check_button.setEnabled(actionable)
         self.disconnect_button.setEnabled(actionable)
+        self.reconnect_button.setEnabled(
+            not self._busy and selected is not None and selected["status"] != "connected"
+        )
 
     def _show(self, message, error=False):
         self.status_label.setStyleSheet("color: #b00020;" if error else "color: #555555;")

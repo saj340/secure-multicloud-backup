@@ -9,9 +9,14 @@ from .manager import (
     check_provider,
     connect_provider,
     disconnect_provider,
+    reconnect_provider,
 )
 from .models import CloudProvider
-from .serializers import CloudProviderSerializer, ConnectProviderSerializer
+from .serializers import (
+    CloudProviderSerializer,
+    ConnectProviderSerializer,
+    ReconnectProviderSerializer,
+)
 
 
 def _own_provider(request, pk):
@@ -56,3 +61,23 @@ class ProviderDisconnectView(APIView):
         provider = _own_provider(request, pk)
         disconnect_provider(provider)
         return Response(CloudProviderSerializer(provider).data)
+
+
+class ProviderReconnectView(APIView):
+    def post(self, request, pk):
+        provider = _own_provider(request, pk)
+        serializer = ReconnectProviderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            provider, checked, missing = reconnect_provider(
+                provider, serializer.validated_data["credentials"]
+            )
+        except ProviderError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                **CloudProviderSerializer(provider).data,
+                "fragments_checked": checked,
+                "fragments_missing": missing,
+            }
+        )

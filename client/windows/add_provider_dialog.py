@@ -45,20 +45,37 @@ FIXED_ROWS = 2  # provider type and display name; credential rows follow
 
 
 class AddProviderDialog(QDialog):
-    def __init__(self, provider_types, parent=None):
+    def __init__(self, provider_types, parent=None, reconnecting=None):
+        """
+        `reconnecting` is an existing provider record to give new credentials to. Its
+        type and name are then fixed, because backups already stored there belong to it.
+        """
         super().__init__(parent)
-        self.setWindowTitle("Add cloud provider")
+        self.reconnecting = reconnecting
+        self.setWindowTitle(
+            f"Reconnect {reconnecting['display_name']}" if reconnecting else "Add cloud provider"
+        )
         self.setMinimumWidth(560)
 
         self._inputs = {}
 
         self.type_combo = QComboBox()
-        for provider_type in provider_types:
-            if provider_type["value"] in CREDENTIAL_FIELDS:
-                self.type_combo.addItem(provider_type["label"], provider_type["value"])
+        if reconnecting:
+            if reconnecting["provider_type"] in CREDENTIAL_FIELDS:
+                self.type_combo.addItem(
+                    reconnecting["provider_type_label"], reconnecting["provider_type"]
+                )
+        else:
+            for provider_type in provider_types:
+                if provider_type["value"] in CREDENTIAL_FIELDS:
+                    self.type_combo.addItem(provider_type["label"], provider_type["value"])
 
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("e.g. My backup drive")
+        if reconnecting:
+            self.name_input.setText(reconnecting["display_name"])
+            self.type_combo.setEnabled(False)
+            self.name_input.setReadOnly(True)
 
         self.form = QFormLayout()
         self.form.setVerticalSpacing(12)
@@ -96,7 +113,13 @@ class AddProviderDialog(QDialog):
         self._inputs = {}
 
         provider_type = self.type_combo.currentData()
-        self.hint_label.setText(PROVIDER_HINTS.get(provider_type, ""))
+        hint = PROVIDER_HINTS.get(provider_type, "")
+        if self.reconnecting:
+            hint = (
+                "Enter the credentials again. Use the same bucket or folder the backups "
+                "were stored in, or their copies here won't be found.\n\n" + hint
+            )
+        self.hint_label.setText(hint)
         self.error_label.setText("")
 
         for key, label, kind, _required in CREDENTIAL_FIELDS.get(provider_type, []):

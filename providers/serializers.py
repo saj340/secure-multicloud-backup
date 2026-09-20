@@ -33,3 +33,8 @@ class ConnectProviderSerializer(serializers.Serializer):
                 f"Unsupported provider type. Available: {', '.join(allowed)}."
             )
         return value
+
+
+class ReconnectProviderSerializer(serializers.Serializer):
+    # The type and name stay as they were: the fragments already stored are tied to this record.
+    credentials = serializers.DictField(write_only=True)

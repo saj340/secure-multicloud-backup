@@ -26,7 +26,7 @@ from .adapters.base import (
 from .adapters.local import LocalFolderAdapter
 from .adapters.s3 import S3Adapter
 from .endpoints import validate_endpoint_url
-from .models import CloudProvider
+from .models import CloudProvider, StorageLocation
 
 
 def _local_folder(credentials):
@@ -126,6 +126,56 @@ def connect_provider(user, provider_type: str, display_name: str, credentials: d
         provider_id=provider.id,
     )
     return provider
+
+
+# How many stored fragments a reconnect looks for. Enough to notice credentials that
+# point at the wrong bucket, without a request per fragment for a large backup history.
+RECONNECT_SAMPLE = 25
+
+
+def reconnect_provider(provider: CloudProvider, credentials: dict):
+    """
+    Give a disconnected (or failing) provider working credentials again. The record is
+    reused, not replaced, so the backup fragments already tied to it are reachable again.
+
+    Returns (provider, checked, missing): how many of its most recent stored fragments
+    were looked for, and how many were not there. A non-zero `missing` usually means the
+    credentials lead to a different bucket or folder than the one the backups went to.
+    """
+    if provider.status == CloudProvider.Status.CONNECTED:
+        raise ProviderConfigurationError("This provider is already connected.")
+
+    adapter = _build_adapter(provider.provider_type, credentials)
+    if not adapter.health_check():
+        raise ProviderUnavailableError("Could not reach the provider with the supplied credentials.")
+
+    set_credentials(provider, credentials)
+    provider.status = CloudProvider.Status.CONNECTED
+    provider.last_checked_at = timezone.now()
+    provider.save()
+
+    stored = provider.storage_locations.filter(
+        upload_status=StorageLocation.UploadStatus.COMPLETED
+    ).order_by("-id")[:RECONNECT_SAMPLE]
+    checked = missing = 0
+    for location in stored:
+        checked += 1
+        try:
+            found = adapter.exists(location.remote_path)
+        except ProviderError:
+            found = False
+        if not found:
+            missing += 1
+
+    log_activity(
+        provider.user,
+        "provider_reconnected",
+        f"Reconnected '{provider.display_name}'."
+        + (f" {missing} of {checked} stored fragments were not found there." if missing else ""),
+        level=ActivityLog.Level.WARNING if missing else ActivityLog.Level.INFO,
+        provider_id=provider.id,
+    )
+    return provider, checked, missing
 
 
 def check_provider(provider: CloudProvider) -> bool:

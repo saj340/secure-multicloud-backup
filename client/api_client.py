@@ -141,6 +141,11 @@ class ApiClient:
     def disconnect_provider(self, provider_id):
         return self._request("POST", f"/providers/{provider_id}/disconnect/").json()
 
+    def reconnect_provider(self, provider_id, credentials):
+        return self._request(
+            "POST", f"/providers/{provider_id}/reconnect/", json={"credentials": credentials}
+        ).json()
+
     # ----------------------------------------------------------- backups
 
     def list_jobs(self):

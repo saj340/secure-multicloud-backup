@@ -96,7 +96,7 @@ both whole files and individual fragments.
 ## 7. Size of the work
 
 About 5,050 lines of application code and 3,650 lines of tests (Python, excluding
-migrations), 26 API endpoints, 11 database models, 352 automated tests that run in
+migrations), 27 API endpoints, 11 database models, 373 automated tests that run in
 about one minute and need no cloud account.
 
 | Area | Code | Tests |
@@ -114,8 +114,11 @@ about one minute and need no cloud account.
 - **Not zero-knowledge.** The server holds the master key and can decrypt stored
   data keys. This was a conscious choice (see the password-reset reasoning above).
 - **Tolerates one provider failure**, not two. XOR parity protects against exactly one.
-- **Disconnecting a provider is one-way.** Reconnecting creates a new record, and
-  fragments stored on the old one remain tied to it.
+- **Reconnecting needs the same storage.** A disconnected provider can be reconnected
+  in place with new credentials, which makes its stored fragments reachable again. If
+  the credentials lead to a different bucket or folder, the app warns that fragments
+  were not found, but it cannot prove the two places are the same; it only samples the
+  25 most recent fragments.
 - **Local-folder providers are for development and demos only.**
 - **Scheduled backups need the app open.** A background service is not built.
 - **Rate limits are per client IP**, which needs real-address forwarding behind a proxy.

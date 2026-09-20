@@ -9,4 +9,5 @@ urlpatterns = [
     path("types/", views.ProviderTypesView.as_view(), name="types"),
     path("<int:pk>/check/", views.ProviderCheckView.as_view(), name="check"),
     path("<int:pk>/disconnect/", views.ProviderDisconnectView.as_view(), name="disconnect"),
+    path("<int:pk>/reconnect/", views.ProviderReconnectView.as_view(), name="reconnect"),
 ]
