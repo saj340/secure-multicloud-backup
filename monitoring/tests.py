@@ -109,3 +109,39 @@ class ProviderEventTests(TestCase):
         self.assertEqual(
             actions(action__startswith="provider_"), ["provider_connected", "provider_disconnected"]
         )
+
+
+class ActivityApiTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="me@example.com", password=PASSWORD)
+        self.other = User.objects.create_user(email="other@example.com", password=PASSWORD)
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def add(self, user, count, action="backup_run_started"):
+        for number in range(count):
+            ActivityLog.objects.create(user=user, action=action, description=f"entry {number}")
+
+    def test_it_requires_a_login(self):
+        response = APIClient().get("/api/monitoring/activity/")
+        self.assertEqual(response.status_code, 401)
+
+    def test_it_lists_only_the_callers_entries_newest_first(self):
+        self.add(self.user, 3)
+        self.add(self.other, 2, action="secret_event")
+        rows = self.client.get("/api/monitoring/activity/").data
+        self.assertEqual([row["description"] for row in rows], ["entry 2", "entry 1", "entry 0"])
+        self.assertNotIn("secret_event", str(rows))
+
+    def test_it_never_exposes_metadata_such_as_ip_addresses(self):
+        ActivityLog.objects.create(user=self.user, action="login_failed", metadata={"ip": "10.9.8.7"})
+        rows = self.client.get("/api/monitoring/activity/").data
+        self.assertNotIn("10.9.8.7", str(rows))
+        self.assertEqual(set(rows[0]), {"id", "action", "description", "level", "created_at"})
+
+    def test_the_limit_is_honoured_and_capped(self):
+        self.add(self.user, 5)
+        self.assertEqual(len(self.client.get("/api/monitoring/activity/?limit=2").data), 2)
+        self.assertEqual(len(self.client.get("/api/monitoring/activity/?limit=0").data), 1)
+        self.assertEqual(len(self.client.get("/api/monitoring/activity/?limit=abc").data), 5)
+        self.assertEqual(len(self.client.get("/api/monitoring/activity/?limit=99999").data), 5)

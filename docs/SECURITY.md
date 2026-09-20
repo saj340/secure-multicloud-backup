@@ -128,7 +128,10 @@ Passwords, tokens and provider credentials are never written to the log. A faile
 sign-in is logged identically whether or not the account exists, so the log write
 does not become a timing signal for finding accounts. Blocked (rate-limited) attempts
 are not logged individually, which keeps a guessing attack from flooding the log.
-There is no screen for reading the log yet; entries are visible in the Django admin.
+Users read their own entries in the app's **Activity** screen (`GET /api/monitoring/activity/`,
+newest first, at most 500). It returns only the caller's entries and leaves out the
+metadata (the email and IP address of failed sign-ins), so the screen shows what happened
+and when and nothing more. Administrators can also see all entries in the Django admin.
 
 ## 9. What this design does not defend against
 

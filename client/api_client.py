@@ -207,6 +207,11 @@ class ApiClient:
             "POST", f"/backups/recoveries/{operation_id}/fail/", json={"message": message}
         ).json()
 
+    # ---------------------------------------------------------- activity
+
+    def list_activity(self, limit=100):
+        return self._request("GET", "/monitoring/activity/", params={"limit": limit}).json()
+
     # --------------------------------------------------------- schedules
 
     def list_schedules(self):

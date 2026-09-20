@@ -14,6 +14,7 @@ from client.api_client import ApiClient
 from client.schedule_runner import ScheduleRunner
 from client.workers import long_task_running, run_in_background
 
+from .activity_page import ActivityPage
 from .dashboard_page import DashboardPage
 from .history_page import HistoryPage
 from .new_backup_page import NewBackupPage
@@ -68,6 +69,7 @@ class MainWindow(QWidget):
         self.recover = RecoverPage(api_client)
         self.schedules = SchedulesPage(api_client)
         self.providers = ProvidersPage(api_client)
+        self.activity = ActivityPage(api_client)
         self.settings_page = SettingsPage(api_client, on_profile_changed=self.update_user)
         self._pages = [
             ("Dashboard", self.dashboard),
@@ -76,6 +78,7 @@ class MainWindow(QWidget):
             ("Recover Files", self.recover),
             ("Backup Schedules", self.schedules),
             ("Cloud Providers", self.providers),
+            ("Activity", self.activity),
             ("Settings", self.settings_page),
         ]
 

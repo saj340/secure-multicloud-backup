@@ -85,6 +85,7 @@ class NavigationTests(GuiTestCase):
                 "Recover Files",
                 "Backup Schedules",
                 "Cloud Providers",
+                "Activity",
                 "Settings",
             ],
         )
@@ -94,8 +95,12 @@ class NavigationTests(GuiTestCase):
             self.assertEqual(window.pages.currentIndex(), row)
         self.assertTrue(
             wait_until(
-                lambda: not (window.history._busy or window.recover._busy or window.providers._busy)
+                lambda: not (window.history._busy
+                    or window.recover._busy
+                    or window.providers._busy
+                    or window.activity._busy
+                )
             )
         )
-        for page in (window.history, window.recover, window.providers):
+        for page in (window.history, window.recover, window.providers, window.activity):
             self.assertEqual(page.status_label.text(), "")

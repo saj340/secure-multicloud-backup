@@ -5,6 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from datetime import timedelta
 
 from django.test import SimpleTestCase
+from PySide6.QtCore import Qt
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
 
@@ -118,13 +119,13 @@ class MainWindowSettingsTests(GuiTestCase):
         window = MainWindow(self.api)
         self.addCleanup(window.deleteLater)
         window.set_user(self.api.me())
-        window.sidebar.setCurrentRow(6)
-        self.assertEqual(window.sidebar.item(6).text(), "Settings")
+        settings_row = window.sidebar.row(window.sidebar.findItems("Settings", Qt.MatchFlag.MatchExactly)[0])
+        window.sidebar.setCurrentRow(settings_row)
 
         window.settings_page.name_input.setText("Display Name Changed")
         window.settings_page.save_profile()
         self.assertTrue(wait_until(lambda: "Display Name Changed" in window.dashboard.welcome_label.text()))
-        self.assertEqual(window.pages.currentIndex(), 6)
+        self.assertEqual(window.pages.currentIndex(), settings_row)
 
 
 class SessionExpiryTests(GuiTestCase):
