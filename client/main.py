@@ -74,7 +74,10 @@ class AppWindows:
 
 def main():
     app = QApplication(sys.argv)
-    api_client = ApiClient()
+    try:
+        api_client = ApiClient()
+    except ValueError as exc:  # e.g. BACKUP_API_URL is plain http to a remote server
+        sys.exit(str(exc))
     windows = AppWindows(api_client)
     windows.start()
     sys.exit(app.exec())

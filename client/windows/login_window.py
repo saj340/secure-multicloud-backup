@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
@@ -25,8 +27,8 @@ class LoginWindow(QWidget):
         self.on_forgot_password_requested = on_forgot_password_requested
         self.on_login_success = on_login_success
         self.setWindowTitle("Secure Multi-Cloud Backup — Log in")
-        self.resize(480, 360)
-        self.setMinimumSize(420, 320)
+        self.resize(480, 400)
+        self.setMinimumSize(420, 360)
 
         title_font = QFont()
         title_font.setPointSize(16)
@@ -34,6 +36,9 @@ class LoginWindow(QWidget):
 
         field_font = QFont()
         field_font.setPointSize(11)
+
+        small_font = QFont()
+        small_font.setPointSize(9)
 
         title_label = QLabel("Log in")
         title_label.setFont(title_font)
@@ -77,8 +82,18 @@ class LoginWindow(QWidget):
         self.forgot_password_link.setCursor(Qt.CursorShape.PointingHandCursor)
         self.forgot_password_link.clicked.connect(self._handle_forgot_password_click)
 
+        server = urlparse(api_client.base_url)
+        encrypted = server.scheme == "https"
+        self.server_label = QLabel(
+            f"Encrypted (TLS) connection to {server.netloc}"
+            if encrypted
+            else f"Not encrypted: local development server at {server.netloc}"
+        )
+        self.server_label.setFont(small_font)
+        self.server_label.setStyleSheet("color: #1b7f3b;" if encrypted else "color: #b26a00;")
+
         layout = QVBoxLayout()
-        layout.setContentsMargins(32, 32, 32, 32)
+        layout.setContentsMargins(32, 32, 32, 20)
         layout.setSpacing(10)
         layout.addWidget(title_label)
         layout.addSpacing(12)
@@ -92,6 +107,7 @@ class LoginWindow(QWidget):
         layout.addWidget(self.register_link)
         layout.addWidget(self.forgot_password_link)
         layout.addStretch()
+        layout.addWidget(self.server_label)
         self.setLayout(layout)
 
     def _handle_register_click(self):

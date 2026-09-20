@@ -165,3 +165,13 @@ ALLOW_PRIVATE_S3_ENDPOINTS = DEBUG
 
 # Ciphertext arrives as one request body held in memory, so cap its size.
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024
+
+# Production posture: everything must travel over HTTPS. Development (DEBUG)
+# omits these so the plain dev server and the test suite keep working.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True  # only takes effect if the domain is submitted to browsers' preload lists

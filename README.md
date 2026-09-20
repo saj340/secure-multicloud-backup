@@ -34,9 +34,10 @@ it entirely without needing to enable Windows Long Path support system-wide.
 python -m venv /c/venvs/smcb
 source /c/venvs/smcb/Scripts/activate
 pip install -r requirements.txt
-cp .env.example .env           # then edit SECRET_KEY
+cp .env.example .env           # then edit SECRET_KEY and MASTER_KEK
 python manage.py migrate
-python manage.py runserver     # starts the API backend on :8000
+python -m config.devcerts      # once: creates a development CA and server certificate in certs/
+python -m config.securerun     # starts the API over HTTPS on https://127.0.0.1:8443
 ```
 
 In a second terminal, with the same venv active:
@@ -46,6 +47,29 @@ python -m client.main           # launches the desktop client
 ```
 
 Database is SQLite for now; will move to PostgreSQL once the data model is in place.
+
+## Secure communication (HTTPS)
+
+The client and server talk over TLS, and the client will not send a password,
+key or file to a server whose certificate it can't verify.
+
+- `python -m config.devcerts` creates a private development CA and one server
+  certificate for `localhost` / `127.0.0.1` in `certs/` (git-ignored). The CA's
+  private key is discarded right after signing. The client trusts only
+  `certs/dev-ca.pem`, and only for the local machine, so nothing is installed
+  into the operating system's trusted certificates.
+- The client refuses plain `http://` for any address except the local machine.
+- To point the client elsewhere: `BACKUP_API_URL=https://backup.example.com/api`.
+  A real server uses a certificate from a public CA, which the system already
+  trusts. For a private CA set `BACKUP_CA_CERT` to its certificate file.
+- With `DEBUG=False` the server enables HTTPS redirect, secure cookies and HSTS,
+  and a test runs Django's `check --deploy` against that configuration.
+- For quick local work without TLS, `python manage.py runserver` still works if the
+  client is started with `BACKUP_API_URL=http://127.0.0.1:8000/api`; the login
+  window then shows "Not encrypted".
+
+The tests expect `DEBUG=True` (as in `.env.example`), since the production settings
+redirect plain http to https.
 
 ## Cloud providers
 

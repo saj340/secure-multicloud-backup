@@ -14,3 +14,11 @@ from django.core.asgi import get_asgi_application
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 application = get_asgi_application()
+
+from django.conf import settings  # noqa: E402  (needs DJANGO_SETTINGS_MODULE set above)
+
+if settings.DEBUG:
+    # runserver serves the admin's CSS and JS itself; uvicorn doesn't. Development only.
+    from django.contrib.staticfiles.handlers import ASGIStaticFilesHandler
+
+    application = ASGIStaticFilesHandler(application)

@@ -1,6 +1,7 @@
 import requests
 
-API_BASE_URL = "http://127.0.0.1:8000/api"
+from . import config
+
 DEFAULT_TIMEOUT = 10
 TRANSFER_TIMEOUT = 300
 
@@ -13,8 +14,12 @@ class ApiError(Exception):
 
 
 class ApiClient:
-    def __init__(self, base_url=API_BASE_URL):
-        self.base_url = base_url
+    def __init__(self, base_url=None, ca_cert=None):
+        self.base_url = base_url or config.api_url()
+        config.require_safe_transport(self.base_url)
+        # The server's certificate is always verified: against our own CA when one
+        # is configured (a development server), otherwise the system's trusted CAs.
+        self._verify = ca_cert or config.ca_cert_for(self.base_url) or True
         self.token = None
 
     def _headers(self):
@@ -26,8 +31,20 @@ class ApiClient:
         headers = {**self._headers(), **kwargs.pop("headers", {})}
         try:
             response = requests.request(
-                method, f"{self.base_url}{path}", headers=headers, timeout=timeout, **kwargs
+                method,
+                f"{self.base_url}{path}",
+                headers=headers,
+                timeout=timeout,
+                verify=self._verify,
+                **kwargs,
             )
+        except requests.exceptions.SSLError as exc:
+            # The handshake failed before any request was sent, so nothing
+            # (including the password) reached the unverified server.
+            raise ApiError(
+                "The server's security certificate could not be verified, so the connection "
+                "was refused. Nothing was sent."
+            ) from exc
         except requests.RequestException as exc:
             raise ApiError("Could not reach the server. Check that it is running.") from exc
         if response.status_code not in expected:
