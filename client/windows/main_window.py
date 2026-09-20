@@ -18,6 +18,7 @@ from .history_page import HistoryPage
 from .new_backup_page import NewBackupPage
 from .providers_page import ProvidersPage
 from .recover_page import RecoverPage
+from .settings_page import SettingsPage
 
 
 class MainWindow(QWidget):
@@ -58,12 +59,14 @@ class MainWindow(QWidget):
         self.history = HistoryPage(api_client)
         self.recover = RecoverPage(api_client)
         self.providers = ProvidersPage(api_client)
+        self.settings_page = SettingsPage(api_client, on_profile_changed=self.update_user)
         self._pages = [
             ("Dashboard", self.dashboard),
             ("New Backup", self.new_backup),
             ("Backup History", self.history),
             ("Recover Files", self.recover),
             ("Cloud Providers", self.providers),
+            ("Settings", self.settings_page),
         ]
 
         self.pages = QStackedWidget()
@@ -89,12 +92,17 @@ class MainWindow(QWidget):
         layout.addLayout(body, 1)
 
     def set_user(self, user):
-        self.user_label.setText(user["email"])
-        self.dashboard.set_user(user)
+        self.update_user(user)
+        self.settings_page.set_user(user)
         if self.sidebar.currentRow() == 0:
             self.dashboard.refresh()
         else:
             self.sidebar.setCurrentRow(0)
+
+    def update_user(self, user):
+        """Show changed profile details without changing screens."""
+        self.user_label.setText(user["email"])
+        self.dashboard.set_user(user)
 
     def _show_page(self, index):
         self.pages.setCurrentIndex(index)

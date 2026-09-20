@@ -44,6 +44,30 @@ class UserSerializer(serializers.ModelSerializer):
         fields = ["id", "email", "full_name", "date_joined"]
 
 
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """Only the name is editable: the email is the login identity."""
+
+    class Meta:
+        model = User
+        fields = ["full_name"]
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password1 = serializers.CharField(write_only=True)
+    new_password2 = serializers.CharField(write_only=True)
+
+    def validate_new_password1(self, value):
+        # Passing the user lets Django reject passwords too similar to their email or name.
+        validate_password(value, user=self.context["request"].user)
+        return value
+
+    def validate(self, data):
+        if data["new_password1"] != data["new_password2"]:
+            raise serializers.ValidationError({"new_password2": "Passwords do not match."})
+        return data
+
+
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
 

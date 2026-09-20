@@ -12,6 +12,9 @@ from PySide6.QtWidgets import (
 
 from client.api_client import ApiClient, ApiError
 
+ERROR_STYLE = "color: #b00020;"
+NOTICE_STYLE = "color: #b26a00;"
+
 
 class LoginWindow(QWidget):
     def __init__(
@@ -59,7 +62,7 @@ class LoginWindow(QWidget):
         self.password_input.setMinimumHeight(36)
 
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet("color: #b00020;")
+        self.status_label.setStyleSheet(ERROR_STYLE)
         self.status_label.setFont(field_font)
         self.status_label.setWordWrap(True)
 
@@ -90,7 +93,7 @@ class LoginWindow(QWidget):
             else f"Not encrypted: local development server at {server.netloc}"
         )
         self.server_label.setFont(small_font)
-        self.server_label.setStyleSheet("color: #1b7f3b;" if encrypted else "color: #b26a00;")
+        self.server_label.setStyleSheet("color: #1b7f3b;" if encrypted else NOTICE_STYLE)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(32, 32, 32, 20)
@@ -110,6 +113,11 @@ class LoginWindow(QWidget):
         layout.addWidget(self.server_label)
         self.setLayout(layout)
 
+    def show_notice(self, message):
+        """A message that isn't an error, e.g. that the session expired."""
+        self.status_label.setStyleSheet(NOTICE_STYLE)
+        self.status_label.setText(message)
+
     def _handle_register_click(self):
         if self.on_register_requested:
             self.on_register_requested()
@@ -121,6 +129,7 @@ class LoginWindow(QWidget):
     def handle_login(self):
         email = self.email_input.text().strip()
         password = self.password_input.text()
+        self.status_label.setStyleSheet(ERROR_STYLE)
 
         if not email or not password:
             self.status_label.setText("Email and password are required.")

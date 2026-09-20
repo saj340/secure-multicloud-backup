@@ -71,6 +71,17 @@ key or file to a server whose certificate it can't verify.
 The tests expect `DEBUG=True` (as in `.env.example`), since the production settings
 redirect plain http to https.
 
+## Accounts and sessions
+
+- A login token stops working `AUTH_TOKEN_LIFETIME_HOURS` (default 12) after it was
+  issued. Logging in again issues a new one and ends any earlier session, so an
+  account has one active session. When a session has expired the app returns to the
+  login window with a notice, from whichever screen made the request.
+- Changing the password (Settings) needs the current password, applies the same
+  strength rules as registration (including "too similar to your email"), signs out
+  every other session, and gives the app that made the change a fresh token.
+- Only the name is editable in the profile; the email is the login identity.
+
 ## Cloud providers
 
 | Type | Notes |

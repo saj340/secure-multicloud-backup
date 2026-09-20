@@ -9,11 +9,15 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from monitoring.service import log_activity
+
 from .models import User
 from .serializers import (
+    ChangePasswordSerializer,
     LoginSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    ProfileUpdateSerializer,
     RegistrationSerializer,
     UserSerializer,
 )
@@ -47,7 +51,10 @@ class LoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        token, _ = Token.objects.get_or_create(user=user)
+        # A fresh token every login, so its lifetime starts now and any earlier
+        # session (another device, a stolen token) ends.
+        Token.objects.filter(user=user).delete()
+        token = Token.objects.create(user=user)
         return Response({"token": token.key, "user": UserSerializer(user).data})
 
 
@@ -64,6 +71,37 @@ class MeView(APIView):
 
     def get(self, request):
         return Response(UserSerializer(request.user).data)
+
+    def patch(self, request):
+        serializer = ProfileUpdateSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(UserSerializer(request.user).data)
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        if not user.check_password(serializer.validated_data["current_password"]):
+            return Response(
+                {"detail": "Your current password is incorrect."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(serializer.validated_data["new_password1"])
+        user.save()
+
+        # Whoever else was signed in (or holds a stolen token) is signed out; this
+        # client gets a fresh token so it stays signed in.
+        Token.objects.filter(user=user).delete()
+        token = Token.objects.create(user=user)
+        log_activity(user, "password_changed", "Password changed; other sessions were signed out.")
+        return Response({"token": token.key})
 
 
 class PasswordResetRequestView(APIView):

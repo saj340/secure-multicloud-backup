@@ -137,12 +137,18 @@ AUTH_USER_MODEL = 'accounts.User'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'accounts.authentication.ExpiringTokenAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
 }
+
+# A login token stops working this long after it was issued. Logging in again
+# issues a fresh one and ends any earlier session.
+from datetime import timedelta  # noqa: E402
+
+AUTH_TOKEN_LIFETIME = timedelta(hours=int(os.environ.get('AUTH_TOKEN_LIFETIME_HOURS', '12')))
 
 # Dev-only: prints "sent" emails to the console instead of using a real
 # mail server. Swap to an SMTP backend when this needs to work for real.

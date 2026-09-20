@@ -75,12 +75,29 @@ class ApiClient:
 
     def logout(self):
         try:
-            self._request("POST", "/accounts/logout/", expected=(204,))
+            # A 401 means the session already ended, which is what logging out wants.
+            self._request("POST", "/accounts/logout/", expected=(204, 401))
         finally:
             self.token = None
 
     def me(self):
         return self._request("GET", "/accounts/me/").json()
+
+    def update_profile(self, full_name):
+        return self._request("PATCH", "/accounts/me/", json={"full_name": full_name}).json()
+
+    def change_password(self, current_password, new_password1, new_password2):
+        """Changes the password. The server ends all other sessions and issues this one a new token."""
+        data = self._request(
+            "POST",
+            "/accounts/change-password/",
+            json={
+                "current_password": current_password,
+                "new_password1": new_password1,
+                "new_password2": new_password2,
+            },
+        ).json()
+        self.token = data["token"]
 
     def request_password_reset(self, email):
         return self._request(
@@ -202,10 +219,18 @@ class ApiClient:
         if "detail" in data:
             return data["detail"]
 
+        labels = {
+            "email": "Email",
+            "full_name": "Name",
+            "password1": "Password",
+            "password2": "Confirm password",
+            "current_password": "Current password",
+            "new_password1": "New password",
+            "new_password2": "Confirm new password",
+            "code": "Reset code",
+        }
         messages = []
         for field, errors in data.items():
-            if isinstance(errors, list):
-                messages.append(f"{field}: {errors[0]}")
-            else:
-                messages.append(f"{field}: {errors}")
+            text = " ".join(str(e) for e in errors) if isinstance(errors, list) else str(errors)
+            messages.append(f"{labels.get(field, field)}: {text}")
         return "; ".join(messages) if messages else f"Server error ({response.status_code})"

@@ -8,6 +8,9 @@ from client.windows.login_window import LoginWindow
 from client.windows.main_window import MainWindow
 from client.windows.register_window import RegisterWindow
 from client.windows.reset_password_window import ResetPasswordWindow
+from client.workers import set_unauthorized_handler
+
+SESSION_EXPIRED = "Your session has expired. Please log in again."
 
 
 class AppWindows:
@@ -44,6 +47,8 @@ class AppWindows:
             self.reset_password_window,
             self.main_window,
         ]
+        # Any screen whose request is refused with a 401 lands here.
+        set_unauthorized_handler(self._session_expired)
 
     def _show_only(self, window):
         # Show the target first so there is never a moment with no visible window.
@@ -67,6 +72,13 @@ class AppWindows:
     def show_main(self, user):
         self.main_window.set_user(user)
         self._show_only(self.main_window)
+
+    def _session_expired(self):
+        if not self.main_window.isVisible():
+            return  # several requests can fail together; only the first needs to act
+        self.api_client.token = None
+        self.show_login()
+        self.login_window.show_notice(SESSION_EXPIRED)
 
     def start(self):
         self.show_login()

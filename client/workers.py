@@ -12,17 +12,29 @@ handed to on_progress:
 
 Call it from the UI thread. All callbacks are also delivered on the UI
 thread, so they can touch widgets directly.
+
+If background work fails because the login is no longer valid (an HTTP 401),
+the handler set with set_unauthorized_handler is called once as well, so the
+app can send the user back to the login window from any screen.
 """
 
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 _active = set()
+_unauthorized_handler = None
+
+
+def set_unauthorized_handler(handler):
+    """handler() is called on the UI thread when background work is refused with a 401."""
+    global _unauthorized_handler
+    _unauthorized_handler = handler
 
 
 class _Thread(QThread):
     succeeded = Signal(object)
     failed = Signal(str)
     progressed = Signal(object)
+    unauthorized = Signal()
 
     def __init__(self, fn, wants_progress):
         super().__init__()
@@ -36,6 +48,8 @@ class _Thread(QThread):
             else:
                 result = self._fn()
         except Exception as exc:  # a worker must never die silently; the UI reports it
+            if getattr(exc, "status_code", None) == 401:
+                self.unauthorized.emit()
             self.failed.emit(getattr(exc, "message", None) or str(exc))
         else:
             self.succeeded.emit(result)
@@ -53,6 +67,7 @@ class _Job(QObject):
         self._thread.succeeded.connect(self._handle_success)
         self._thread.failed.connect(self._handle_error)
         self._thread.progressed.connect(self._handle_progress)
+        self._thread.unauthorized.connect(self._handle_unauthorized)
         self._thread.finished.connect(self._cleanup)
 
     def start(self):
@@ -71,6 +86,11 @@ class _Job(QObject):
     @Slot(object)
     def _handle_progress(self, args):
         self._on_progress(*args)
+
+    @Slot()
+    def _handle_unauthorized(self):
+        if _unauthorized_handler is not None:
+            _unauthorized_handler()
 
     @Slot()
     def _cleanup(self):

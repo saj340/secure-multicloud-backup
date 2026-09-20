@@ -78,7 +78,14 @@ class NavigationTests(GuiTestCase):
         names = [window.sidebar.item(row).text() for row in range(window.sidebar.count())]
         self.assertEqual(
             names,
-            ["Dashboard", "New Backup", "Backup History", "Recover Files", "Cloud Providers"],
+            [
+                "Dashboard",
+                "New Backup",
+                "Backup History",
+                "Recover Files",
+                "Cloud Providers",
+                "Settings",
+            ],
         )
 
         for row in range(len(names)):
