@@ -104,6 +104,14 @@ class S3AdapterTests(MotoServerMixin, SimpleTestCase):
     def test_is_a_storage_adapter(self):
         self.assertIsInstance(self.adapter, StorageAdapter)
 
+    def test_checksums_are_only_sent_when_an_operation_requires_them(self):
+        # Storj rejected uploads ("MissingContentLength") while boto3 added checksum
+        # headers to every request. The fake server can't reproduce that, so this
+        # pins the setting that fixed it against real services.
+        config = self.adapter._client.meta.config
+        self.assertEqual(config.request_checksum_calculation, "when_required")
+        self.assertEqual(config.response_checksum_validation, "when_required")
+
     def test_upload_then_download_returns_identical_bytes(self):
         data = os.urandom(100_000)
         self.adapter.upload("u1/job1/file1/v1/part0.bin", data)

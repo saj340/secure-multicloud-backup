@@ -50,6 +50,12 @@ class S3Adapter(StorageAdapter):
                 read_timeout=60,
                 # Custom endpoints (B2, MinIO, ...) all accept path-style addressing.
                 s3={"addressing_style": "path"} if endpoint_url else {},
+                # Recent boto3 adds checksum headers and streaming trailers to every
+                # request. Amazon accepts them, but several S3-compatible services
+                # (Storj, for one) reject uploads with "MissingContentLength". Only
+                # send them when an operation requires it.
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
             ),
         )
 
