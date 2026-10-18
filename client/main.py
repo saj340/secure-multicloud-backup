@@ -60,6 +60,8 @@ class AppWindows:
 
     def show_login(self):
         self.main_window.runner.stop()  # no scheduled backups without a logged-in user
+        self.main_window.health.stop()
+        self.main_window.health_status.setText("")
         self._show_only(self.login_window)
 
     def show_register(self):
@@ -76,6 +78,7 @@ class AppWindows:
         self._show_only(self.main_window)
         if self.run_schedules:
             self.main_window.runner.start()
+            self.main_window.health.start()
 
     def _session_expired(self):
         if not self.main_window.isVisible():

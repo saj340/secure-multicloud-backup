@@ -127,6 +127,10 @@ not built.
 | Amazon S3 | Bucket, region, access key ID and secret. Always reached at AWS's own addresses. |
 | S3-compatible storage | Backblaze B2, Wasabi, Cloudflare R2, MinIO and others: endpoint URL, bucket, keys. |
 
+Provider health is re-checked in the background while someone is logged in: when the Providers
+or Dashboard screen opens (at most every 30 seconds) and every 5 minutes. A provider that can't
+be reached shows as *Error*, and a warning appears in the app's header on every screen.
+
 Provider credentials are encrypted with the master key before they are stored.
 An endpoint URL supplied for S3-compatible storage must be `https` and resolve to
 public addresses outside development (`ALLOW_PRIVATE_S3_ENDPOINTS`), so a user can't

@@ -70,13 +70,14 @@ It creates a throwaway account and leaves its work files in your temp folder.
 ## Part 5: The strong demo: a provider goes down (2 minutes)
 
 - In File Explorer **rename** `provider-b` to `provider-b-offline`.
-- In **Cloud Providers**, select `provider-b` and click **Check**. Its status turns to
-  *Error*. (The list does not notice by itself: it only looks when you press Check, so
-  skip this step and it will still say Connected.)
+- Open **Cloud Providers** (or press **Check status** if you are already there). The app
+  re-checks providers when you open this screen and every 5 minutes, so `provider-b`
+  turns to *Error* within a couple of seconds and a warning appears in the header.
 - In **Recover Files**, recover the same file again.
 - Say: "One provider is gone. The missing piece is rebuilt from the other data piece
   and the parity piece. Same result." Compare the hashes again.
-- Rename the folder back and press **Check** again; the status returns to *Connected*.
+- Rename the folder back and open the screen again (or press **Check status**); the status
+  returns to *Connected* and the header warning disappears.
 - Optional extra: in **Cloud Providers** select a provider, **Disconnect** it, then
   **Reconnect…** it with the same folder. The app reports that it found the stored
   backup pieces again. Reconnecting with a different, empty folder instead shows the
@@ -110,7 +111,7 @@ It creates a throwaway account and leaves its work files in your temp folder.
 | Why XOR parity and not replication? | No provider holds a whole file, and the storage overhead is 1/(n-1) instead of 100% or more. |
 | Why not use an existing backup tool? | The project's point is the integration: local encryption, multi-provider distribution, integrity verification and recovery under failure. |
 | Did you write your own encryption? | No. Fernet from the `cryptography` library and Django's password hasher. The custom part is the design around them. |
-| Is it tested? | 376 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
+| Is it tested? | 391 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
 | What would you do next? | PostgreSQL, a background service for schedules, Reed-Solomon, key management service. |
 
 ## If something goes wrong

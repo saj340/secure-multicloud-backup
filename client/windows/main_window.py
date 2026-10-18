@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from client.api_client import ApiClient
+from client.health_runner import HealthRunner
 from client.schedule_runner import ScheduleRunner
 from client.workers import long_task_running, run_in_background
 
@@ -47,6 +48,10 @@ class MainWindow(QWidget):
         self.schedule_status.setFont(body_font)
         self.schedule_status.setStyleSheet("color: #1b5fa8;")
 
+        self.health_status = QLabel("")
+        self.health_status.setFont(body_font)
+        self.health_status.setStyleSheet("color: #b26a00;")
+
         self.user_label = QLabel("")
         self.user_label.setFont(body_font)
         self.user_label.setStyleSheet("color: #555555;")
@@ -58,6 +63,8 @@ class MainWindow(QWidget):
         header = QHBoxLayout()
         header.addWidget(app_title)
         header.addStretch()
+        header.addWidget(self.health_status)
+        header.addSpacing(16)
         header.addWidget(self.schedule_status)
         header.addSpacing(16)
         header.addWidget(self.user_label)
@@ -88,6 +95,9 @@ class MainWindow(QWidget):
             on_status=self.schedule_status.setText,
             on_finished=self._scheduled_backup_finished,
         )
+
+        # Also started and stopped by AppWindows.
+        self.health = HealthRunner(api_client, on_result=self._health_result)
 
         self.pages = QStackedWidget()
         self.sidebar = QListWidget()
@@ -126,7 +136,22 @@ class MainWindow(QWidget):
 
     def _show_page(self, index):
         self.pages.setCurrentIndex(index)
-        self._pages[index][1].refresh()
+        page = self._pages[index][1]
+        page.refresh()
+        if page in (self.providers, self.dashboard):
+            self.health.check_now()  # these screens show provider health, so make it fresh
+
+    def _health_result(self, problems, changed):
+        if not problems:
+            self.health_status.setText("")
+        elif len(problems) == 1:
+            self.health_status.setText(f"⚠ {problems[0]} is unreachable")
+        else:
+            self.health_status.setText(f"⚠ {len(problems)} providers are unreachable")
+        # Only redraw a screen that shows provider health, and only if something moved.
+        current = self.pages.currentWidget()
+        if changed and current in (self.providers, self.dashboard):
+            current.refresh()
 
     def _scheduled_backup_finished(self, _schedule, _outcome):
         # Keep whichever list is on screen honest about the run that just ended.

@@ -4,6 +4,9 @@ from . import config
 
 DEFAULT_TIMEOUT = 10
 TRANSFER_TIMEOUT = 300
+# A provider that is really down can take the server a while to give up on (the cloud
+# library retries), so waiting only 10 seconds would report "can't reach the server".
+CHECK_TIMEOUT = 60
 
 
 class ApiError(Exception):
@@ -136,7 +139,9 @@ class ApiClient:
         ).json()
 
     def check_provider(self, provider_id):
-        return self._request("POST", f"/providers/{provider_id}/check/").json()
+        return self._request(
+            "POST", f"/providers/{provider_id}/check/", timeout=CHECK_TIMEOUT
+        ).json()
 
     def disconnect_provider(self, provider_id):
         return self._request("POST", f"/providers/{provider_id}/disconnect/").json()

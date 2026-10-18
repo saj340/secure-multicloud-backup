@@ -96,7 +96,7 @@ both whole files and individual fragments.
 ## 7. Size of the work
 
 About 5,050 lines of application code and 3,650 lines of tests (Python, excluding
-migrations), 27 API endpoints, 11 database models, 376 automated tests that run in
+migrations), 27 API endpoints, 11 database models, 391 automated tests that run in
 about one minute and need no cloud account.
 
 | Area | Code | Tests |
@@ -119,6 +119,10 @@ about one minute and need no cloud account.
   the credentials lead to a different bucket or folder, the app warns that fragments
   were not found, but it cannot prove the two places are the same; it only samples the
   25 most recent fragments.
+- **Provider health is re-checked automatically** (on opening the Providers or Dashboard
+  screen and every 5 minutes), but one failed check marks a provider as unreachable at once.
+  A short network blip therefore shows a warning that clears at the next check. Requiring
+  two failures in a row would remove that noise.
 - **Local-folder providers are for development and demos only.**
 - **Scheduled backups need the app open.** A background service is not built.
 - **Rate limits are per client IP**, which needs real-address forwarding behind a proxy.
