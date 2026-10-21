@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from .api_client import ApiClient, ApiError
-from .backup_service import run_backup
+from .backup_service import load_backups, restore_version, run_backup
 from .main import AppWindows
 from .test_client import EMAIL, PASSWORD, api_url
 from .windows.dashboard_page import DashboardPage
@@ -197,7 +197,10 @@ class DashboardPageTests(GuiTestCase):
         page.refresh()
         self.assertTrue(wait_until(lambda: page.providers_value.text() != "–"))
         self.assertEqual(page.providers_value.text(), "1")
-        self.assertIn("at least 2", page.status_label.text())
+        # While setup is unfinished the getting-started checklist does the guiding
+        # (see test_first_run.py), so the readiness line stays empty.
+        self.assertFalse(page.setup_frame.isHidden())
+        self.assertEqual(page.status_label.text(), "")
 
         self.connect_via_api("beta")
         document = self.tmp / "doc.txt"
@@ -208,6 +211,13 @@ class DashboardPageTests(GuiTestCase):
         self.assertTrue(wait_until(lambda: page.providers_value.text() == "2"))
         self.assertEqual(page.jobs_value.text(), "1")
         self.assertEqual(page.recoveries_value.text(), "0")
+
+        # Once a backup and a restore have both worked, the checklist gives way to this.
+        version = load_backups(self.api)[0]["files"][0]["versions"][0]
+        restore_version(self.api, version["id"], self.tmp / "restored.txt")
+        page.refresh()
+        self.assertTrue(wait_until(lambda: page.recoveries_value.text() == "1"))
+        self.assertTrue(page.setup_frame.isHidden())
         self.assertIn("Ready", page.status_label.text())
 
 

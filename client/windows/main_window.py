@@ -70,7 +70,7 @@ class MainWindow(QWidget):
         header.addWidget(self.user_label)
         header.addWidget(self.logout_button)
 
-        self.dashboard = DashboardPage(api_client)
+        self.dashboard = DashboardPage(api_client, on_navigate=self.show_screen)
         self.new_backup = NewBackupPage(api_client)
         self.history = HistoryPage(api_client)
         self.recover = RecoverPage(api_client)
@@ -133,6 +133,10 @@ class MainWindow(QWidget):
         """Show changed profile details without changing screens."""
         self.user_label.setText(user["email"])
         self.dashboard.set_user(user)
+
+    def show_screen(self, name):
+        """Switch to a screen by its name in the sidebar, e.g. "Cloud Providers"."""
+        self.sidebar.setCurrentRow([screen for screen, _page in self._pages].index(name))
 
     def _show_page(self, index):
         self.pages.setCurrentIndex(index)

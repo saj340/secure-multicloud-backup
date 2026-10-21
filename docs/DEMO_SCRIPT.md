@@ -34,7 +34,10 @@ It creates a throwaway account and leaves its work files in your temp folder.
   server's certificate and will not talk to anything else."
 - Register a new account. Say: "Accounts are our own system. Passwords are hashed with
   PBKDF2, one million rounds. Weak passwords are rejected."
-- Log in.
+- Log in. Point at the **Getting started** checklist on the dashboard: it tells a new
+  user the three steps, ticks each one off only when it has really succeeded (a created
+  but unfinished backup doesn't count), and its buttons jump to the right screen. It
+  disappears once a backup and a restore have both worked.
 
 ## Part 2: Connect providers (2 minutes)
 
@@ -111,7 +114,7 @@ It creates a throwaway account and leaves its work files in your temp folder.
 | Why XOR parity and not replication? | No provider holds a whole file, and the storage overhead is 1/(n-1) instead of 100% or more. |
 | Why not use an existing backup tool? | The project's point is the integration: local encryption, multi-provider distribution, integrity verification and recovery under failure. |
 | Did you write your own encryption? | No. Fernet from the `cryptography` library and Django's password hasher. The custom part is the design around them. |
-| Is it tested? | 391 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
+| Is it tested? | 406 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
 | What would you do next? | PostgreSQL, a background service for schedules, Reed-Solomon, key management service. |
 
 ## If something goes wrong

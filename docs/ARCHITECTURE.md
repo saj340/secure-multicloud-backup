@@ -96,7 +96,7 @@ both whole files and individual fragments.
 ## 7. Size of the work
 
 About 5,050 lines of application code and 3,650 lines of tests (Python, excluding
-migrations), 27 API endpoints, 11 database models, 391 automated tests that run in
+migrations), 27 API endpoints, 11 database models, 406 automated tests that run in
 about one minute and need no cloud account.
 
 | Area | Code | Tests |

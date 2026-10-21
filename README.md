@@ -119,6 +119,14 @@ is due, and reports the result back.
 Running while the app is closed would need a separate background service, which is
 not built.
 
+## First run
+
+A new account's dashboard shows a **Getting started** checklist: connect at least two
+providers, run a first backup, restore a file to check that it works. Each step is ticked
+only when it has really succeeded, later steps stay locked until the one before is done,
+and the buttons jump to the right screen. The checklist disappears for good once a backup
+and a restore have both completed.
+
 ## Cloud providers
 
 | Type | Notes |
