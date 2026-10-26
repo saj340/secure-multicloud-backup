@@ -258,6 +258,29 @@ class ApiClient:
             json={"status": status, "message": message},
         ).json()
 
+    # ------------------------------------------------------- backup sets
+
+    def list_sets(self):
+        return self._request("GET", "/backups/sets/").json()
+
+    def create_set(self, name, sources):
+        return self._request(
+            "POST", "/backups/sets/", expected=(201,), json={"name": name, "sources": sources}
+        ).json()
+
+    def update_set(self, set_id, **fields):
+        return self._request("PATCH", f"/backups/sets/{set_id}/", json=fields).json()
+
+    def delete_set(self, set_id):
+        self._request("DELETE", f"/backups/sets/{set_id}/", expected=(204,))
+
+    def record_set_run(self, set_id, status, message=""):
+        return self._request(
+            "POST",
+            f"/backups/sets/{set_id}/record-run/",
+            json={"status": status, "message": message},
+        ).json()
+
     @staticmethod
     def _extract_error(response):
         try:
