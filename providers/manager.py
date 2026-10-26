@@ -11,6 +11,8 @@ registering it in ADAPTER_FACTORIES; nothing else changes.
 import json
 
 from django.conf import settings
+from django.db.models import Q, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from monitoring.models import ActivityLog
@@ -27,6 +29,25 @@ from .adapters.local import LocalFolderAdapter
 from .adapters.s3 import S3Adapter
 from .endpoints import validate_endpoint_url
 from .models import CloudProvider, StorageLocation
+
+
+_FINISHED = Q(storage_locations__upload_status=StorageLocation.UploadStatus.COMPLETED)
+
+
+def with_storage_used(providers):
+    """
+    Add `storage_used_bytes` to every provider in a queryset, in a single database
+    query: the total size of the fragments it holds. Fragments of failed uploads
+    don't count, because they were removed again.
+    """
+    return providers.annotate(
+        storage_used_bytes=Coalesce(Sum("storage_locations__size_bytes", filter=_FINISHED), 0)
+    )
+
+
+def storage_used(provider: CloudProvider) -> int:
+    """The same total for one provider that wasn't loaded through with_storage_used."""
+    return with_storage_used(CloudProvider.objects.filter(pk=provider.pk)).get().storage_used_bytes
 
 
 def _local_folder(credentials):

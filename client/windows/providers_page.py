@@ -15,12 +15,13 @@ from PySide6.QtWidgets import (
 )
 
 from client.api_client import ApiClient
-from client.formatting import format_timestamp
+from client.formatting import format_size, format_timestamp
 from client.workers import run_in_background
 
 from .add_provider_dialog import AddProviderDialog
 
-COLUMNS = ["Name", "Type", "Status", "Last checked"]
+COLUMNS = ["Name", "Type", "Status", "Stored", "Last checked"]
+STORED_COLUMN = COLUMNS.index("Stored")
 STATUS_STYLE = {
     "connected": ("Connected", "#1b7f3b"),
     "error": ("Error", "#b00020"),
@@ -240,6 +241,7 @@ class ProvidersPage(QWidget):
                 provider["display_name"],
                 provider["provider_type_label"],
                 status_text,
+                format_size(provider["storage_used_bytes"]),
                 format_timestamp(provider["last_checked_at"]),
             ]
             for column, text in enumerate(cells):
@@ -248,6 +250,10 @@ class ProvidersPage(QWidget):
                     item.setData(Qt.ItemDataRole.UserRole, provider["id"])
                 if column == 2:
                     item.setForeground(QBrush(QColor(status_color)))
+                if column == STORED_COLUMN:  # numbers read better lined up on the right
+                    item.setTextAlignment(
+                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                    )
                 self.table.setItem(row, column, item)
 
         connected = sum(1 for p in providers if p["status"] == "connected")

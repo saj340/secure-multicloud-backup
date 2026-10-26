@@ -151,6 +151,7 @@ def store_ciphertext(version: FileVersion, ciphertext: bytes) -> None:
                 cloud_provider=provider,
                 fragment_index=index,
                 remote_path=remote_path,
+                size_bytes=len(fragment),  # known now; recorded so storage can be totalled later
                 upload_status=StorageLocation.UploadStatus.COMPLETED,
                 uploaded_at=timezone.now(),
             )

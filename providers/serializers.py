@@ -1,11 +1,12 @@
 from rest_framework import serializers
 
-from .manager import available_provider_types
+from .manager import available_provider_types, storage_used
 from .models import CloudProvider
 
 
 class CloudProviderSerializer(serializers.ModelSerializer):
     provider_type_label = serializers.CharField(source="get_provider_type_display", read_only=True)
+    storage_used_bytes = serializers.SerializerMethodField()
 
     class Meta:
         model = CloudProvider
@@ -17,8 +18,15 @@ class CloudProviderSerializer(serializers.ModelSerializer):
             "status",
             "created_at",
             "last_checked_at",
+            "storage_used_bytes",
         ]
         read_only_fields = fields
+
+    def get_storage_used_bytes(self, provider):
+        # The list view loads every provider's total in one query; a single provider
+        # (just connected, checked, ...) has no such figure yet, so work it out.
+        total = getattr(provider, "storage_used_bytes", None)
+        return storage_used(provider) if total is None else total
 
 
 class ConnectProviderSerializer(serializers.Serializer):

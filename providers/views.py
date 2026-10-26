@@ -10,6 +10,7 @@ from .manager import (
     connect_provider,
     disconnect_provider,
     reconnect_provider,
+    with_storage_used,
 )
 from .models import CloudProvider
 from .serializers import (
@@ -36,7 +37,7 @@ class ProviderTypesView(APIView):
 
 class ProviderListView(APIView):
     def get(self, request):
-        providers = request.user.cloud_providers.order_by("id")
+        providers = with_storage_used(request.user.cloud_providers.order_by("id"))
         return Response(CloudProviderSerializer(providers, many=True).data)
 
     def post(self, request):

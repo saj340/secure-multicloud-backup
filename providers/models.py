@@ -50,6 +50,9 @@ class StorageLocation(models.Model):
         default=0, help_text="Which fragment of the file version this location holds."
     )
     remote_path = models.TextField()
+    size_bytes = models.PositiveBigIntegerField(
+        default=0, help_text="How many bytes this fragment takes up at the provider."
+    )
     upload_status = models.CharField(
         max_length=20, choices=UploadStatus.choices, default=UploadStatus.PENDING
     )

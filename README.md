@@ -135,6 +135,11 @@ and a restore have both completed.
 | Amazon S3 | Bucket, region, access key ID and secret. Always reached at AWS's own addresses. |
 | S3-compatible storage | Backblaze B2, Wasabi, Cloudflare R2, MinIO and others: endpoint URL, bucket, keys. |
 
+The Providers screen shows how much each provider holds (the **Stored** column). Each fragment's
+size is recorded when it is uploaded; backups made before that was added were filled in by a
+migration from the fragment size saved with each file version. Fragments of failed uploads are
+not counted.
+
 Provider health is re-checked in the background while someone is logged in: when the Providers
 or Dashboard screen opens (at most every 30 seconds) and every 5 minutes. A provider that can't
 be reached shows as *Error*, and a warning appears in the app's header on every screen.

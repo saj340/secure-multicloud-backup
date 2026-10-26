@@ -58,6 +58,8 @@ It creates a throwaway account and leaves its work files in your temp folder.
   into two data pieces plus one parity piece, one per provider. None of these can be
   opened. Open one in Notepad, and it is unreadable, and no single folder has the
   whole file."
+- Open **Cloud Providers**: the **Stored** column now shows how much each provider holds, and
+  the three numbers are almost equal, because each provider holds one equal-sized piece.
 - Open **Backup History**: show the files, sizes, version numbers, and status.
 
 ## Part 4: Recovery and verification (2 minutes)
@@ -114,7 +116,7 @@ It creates a throwaway account and leaves its work files in your temp folder.
 | Why XOR parity and not replication? | No provider holds a whole file, and the storage overhead is 1/(n-1) instead of 100% or more. |
 | Why not use an existing backup tool? | The project's point is the integration: local encryption, multi-provider distribution, integrity verification and recovery under failure. |
 | Did you write your own encryption? | No. Fernet from the `cryptography` library and Django's password hasher. The custom part is the design around them. |
-| Is it tested? | 406 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
+| Is it tested? | 417 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
 | What would you do next? | PostgreSQL, a background service for schedules, Reed-Solomon, key management service. |
 
 ## If something goes wrong
