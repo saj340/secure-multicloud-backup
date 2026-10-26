@@ -6,6 +6,7 @@ from unittest import mock
 
 from django.core.exceptions import PermissionDenied
 from django.test import TestCase
+from django.utils import timezone
 
 from accounts.models import User
 from monitoring.models import ActivityLog
@@ -220,6 +221,42 @@ class BackupRunStatusTests(PipelineTestCase):
         self.client_backup()  # second run only backs up one of the two files
         finish_backup_run(self.job)
         self.assertEqual(self.job.status, BackupJob.Status.FAILED)
+
+    # The clock only ticks every couple of milliseconds, so two events can share a
+    # timestamp. These freeze it completely, so that every timestamp is the same; a
+    # judgement that depended on clock times could not tell the runs apart.
+
+    def run_twice_with_a_frozen_clock(self, second_run_files):
+        with mock.patch("django.utils.timezone.now", return_value=timezone.now()):
+            begin_backup_run(self.job)
+            for file in self.job.files.all():
+                self.client_backup(file=file)
+            finish_backup_run(self.job)
+            self.assertEqual(self.job.status, BackupJob.Status.COMPLETED)
+
+            begin_backup_run(self.job)
+            for file in second_run_files:
+                self.client_backup(file=file)
+            finish_backup_run(self.job)
+
+    def test_a_skipped_file_is_still_caught_when_every_timestamp_is_identical(self):
+        self.run_twice_with_a_frozen_clock(list(self.job.files.all())[:1])
+        self.assertEqual(self.job.status, BackupJob.Status.FAILED)
+
+    def test_a_complete_rerun_still_succeeds_when_every_timestamp_is_identical(self):
+        self.run_twice_with_a_frozen_clock(list(self.job.files.all()))
+        self.assertEqual(self.job.status, BackupJob.Status.COMPLETED)
+
+    def test_each_run_remembers_where_the_version_ids_had_got_to(self):
+        begin_backup_run(self.job)
+        self.assertEqual(self.job.last_run_version_floor, 0)
+        for file in self.job.files.all():
+            self.client_backup(file=file)
+        newest = max(FileVersion.objects.values_list("id", flat=True))
+
+        begin_backup_run(self.job)
+
+        self.assertEqual(self.job.last_run_version_floor, newest)
 
 
 class RecoveryTests(PipelineTestCase):

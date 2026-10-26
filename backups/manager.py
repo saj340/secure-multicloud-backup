@@ -14,6 +14,7 @@ Recovery, per file: start_recovery -> recover_ciphertext + recovery_data_key
 """
 
 from django.core.exceptions import PermissionDenied
+from django.db.models import Max
 from django.utils import timezone
 
 from monitoring.models import ActivityLog
@@ -67,7 +68,11 @@ def create_backup_job(user, name: str, paths: list[str]) -> BackupJob:
 def begin_backup_run(job: BackupJob) -> None:
     job.status = BackupJob.Status.IN_PROGRESS
     job.last_run_started_at = timezone.now()
-    job.save(update_fields=["status", "last_run_started_at"])
+    # Remember how far the version ids had got. Anything the run stores gets a higher
+    # id, whatever the clock says: two events can share a timestamp, never an id.
+    newest = FileVersion.objects.filter(file__backup_job=job).aggregate(top=Max("id"))["top"]
+    job.last_run_version_floor = newest or 0
+    job.save(update_fields=["status", "last_run_started_at", "last_run_version_floor"])
     log_activity(job.user, "backup_run_started", f"Backup '{job.name}' started.", job_id=job.id)
 
 
@@ -78,10 +83,10 @@ def finish_backup_run(job: BackupJob) -> BackupJob:
     the client claims: a file the client skipped still has an older completed
     version, which must not make the run look successful.
     """
-    since = job.last_run_started_at or job.created_at
     succeeded = all(
         file.versions.filter(
-            upload_status=FileVersion.UploadStatus.COMPLETED, backup_time__gte=since
+            upload_status=FileVersion.UploadStatus.COMPLETED,
+            id__gt=job.last_run_version_floor,
         ).exists()
         for file in job.files.all()
     )

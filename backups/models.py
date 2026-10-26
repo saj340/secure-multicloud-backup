@@ -20,6 +20,12 @@ class BackupJob(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
     last_run_started_at = models.DateTimeField(null=True, blank=True)
+    last_run_version_floor = models.PositiveBigIntegerField(
+        default=0,
+        help_text="The highest file-version id the job's files had when the latest run began. "
+        "Only versions with a higher id belong to that run. (Ids only ever go up, unlike "
+        "clock times, which can tie.)",
+    )
 
     def __str__(self):
         return f"{self.name} ({self.get_status_display()})"
