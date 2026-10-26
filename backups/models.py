@@ -63,6 +63,35 @@ class FileVersion(models.Model):
         return f"{self.original_filename} v{self.version_number}"
 
 
+class BackupSet(models.Model):
+    """
+    A named list of folders and files the user backs up together. The set remembers
+    the *places*, not the files in them: "Back up now" looks inside them at that
+    moment, so files added since last time are included. Each run is its own dated
+    backup, exactly like a scheduled run.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="backup_sets"
+    )
+    name = models.CharField(max_length=255)
+    sources = models.JSONField(
+        default=list, help_text="Folder and file paths on the user's computer."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    last_result = models.CharField(max_length=20, blank=True)
+
+    class Meta:
+        ordering = ["name", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "name"], name="unique_backup_set_name_per_user")
+        ]
+
+    def __str__(self):
+        return self.name
+
+
 class BackupSchedule(models.Model):
     class Frequency(models.TextChoices):
         DAILY = "daily", "Daily"

@@ -1,6 +1,9 @@
 from rest_framework import serializers
 
-from .models import BackupJob, BackupSchedule, File, FileVersion, RecoveryOperation
+from .models import BackupJob, BackupSchedule, BackupSet, File, FileVersion, RecoveryOperation
+
+MAX_SET_SOURCES = 50
+MAX_SOURCE_LENGTH = 1000
 
 
 class FileVersionSerializer(serializers.ModelSerializer):
@@ -130,3 +133,34 @@ class BackupScheduleSerializer(serializers.ModelSerializer):
 class RecordScheduleRunSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=["completed", "failed"])
     message = serializers.CharField(max_length=500, required=False, allow_blank=True)
+
+
+class BackupSetSerializer(serializers.ModelSerializer):
+    sources = serializers.ListField(
+        child=serializers.CharField(max_length=MAX_SOURCE_LENGTH, allow_blank=True),
+        max_length=MAX_SET_SOURCES,
+    )
+
+    class Meta:
+        model = BackupSet
+        fields = ["id", "name", "sources", "created_at", "last_run_at", "last_result"]
+        read_only_fields = ["id", "created_at", "last_run_at", "last_result"]
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Give the set a name.")
+        user = self.context["request"].user
+        taken = BackupSet.objects.filter(user=user, name__iexact=value)
+        if self.instance is not None:
+            taken = taken.exclude(pk=self.instance.pk)
+        if taken.exists():
+            raise serializers.ValidationError("You already have a set with that name.")
+        return value
+
+    def validate_sources(self, value):
+        # Blank entries are dropped and repeats collapsed, keeping the order they were given in.
+        cleaned = list(dict.fromkeys(item.strip() for item in value if item.strip()))
+        if not cleaned:
+            raise serializers.ValidationError("Add at least one folder or file.")
+        return cleaned
