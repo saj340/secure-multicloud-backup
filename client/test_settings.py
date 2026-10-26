@@ -146,7 +146,7 @@ class SessionExpiryTests(GuiTestCase):
         # Age the token past its lifetime, as if the app had been left open for days.
         Token.objects.update(created=timezone.now() - timedelta(days=30))
 
-        windows.main_window.sidebar.setCurrentRow(2)  # Backup History makes a request
+        windows.main_window.show_screen("Backup History")  # this screen makes a request
         self.assertTrue(wait_until(lambda: windows.login_window.isVisible()))
 
         self.assertFalse(windows.main_window.isVisible())

@@ -42,6 +42,8 @@ EVENT_LABELS = {
     "provider_reconnected": "Provider reconnected",
     "scheduled_backup_completed": "Scheduled backup finished",
     "scheduled_backup_failed": "Scheduled backup failed",
+    "backup_set_completed": "Backup set finished",
+    "backup_set_failed": "Backup set failed",
 }
 
 LEVEL_DISPLAY = {

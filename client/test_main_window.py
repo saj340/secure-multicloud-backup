@@ -81,6 +81,7 @@ class NavigationTests(GuiTestCase):
             [
                 "Dashboard",
                 "New Backup",
+                "Backup Sets",
                 "Backup History",
                 "Recover Files",
                 "Backup Schedules",
@@ -99,8 +100,9 @@ class NavigationTests(GuiTestCase):
                     or window.recover._busy
                     or window.providers._busy
                     or window.activity._busy
+                    or window.sets._busy
                 )
             )
         )
-        for page in (window.history, window.recover, window.providers, window.activity):
+        for page in (window.history, window.recover, window.providers, window.activity, window.sets):
             self.assertEqual(page.status_label.text(), "")

@@ -127,6 +127,19 @@ only when it has really succeeded, later steps stay locked until the one before 
 and the buttons jump to the right screen. The checklist disappears for good once a backup
 and a restore have both completed.
 
+## Backup sets
+
+A **backup set** is a named group of folders and files that you back up together: for example
+"My documents" covering three folders. The **Backup Sets** screen lets you add, edit and delete
+sets, and **Back up now** runs one. The dashboard also lists your first few sets with their own
+Back up now buttons.
+
+A set remembers the *places*, not the files inside them, so every run looks inside them again and
+files you added since last time are included. Each run is stored as its own dated backup
+(for example `My documents 2026-10-26 14:30`), the same way scheduled backups are, and how the
+last run went is shown next to the set. Deleting a set keeps the backups it already made.
+As with schedules, the paths are those of the computer where the set was saved.
+
 ## Cloud providers
 
 | Type | Notes |

@@ -23,6 +23,7 @@ from .providers_page import ProvidersPage
 from .recover_page import RecoverPage
 from .schedules_page import SchedulesPage
 from .settings_page import SettingsPage
+from .sets_page import SetsPage
 
 
 class MainWindow(QWidget):
@@ -70,8 +71,11 @@ class MainWindow(QWidget):
         header.addWidget(self.user_label)
         header.addWidget(self.logout_button)
 
-        self.dashboard = DashboardPage(api_client, on_navigate=self.show_screen)
+        self.dashboard = DashboardPage(
+            api_client, on_navigate=self.show_screen, on_back_up=self._back_up_set
+        )
         self.new_backup = NewBackupPage(api_client)
+        self.sets = SetsPage(api_client)
         self.history = HistoryPage(api_client)
         self.recover = RecoverPage(api_client)
         self.schedules = SchedulesPage(api_client)
@@ -81,6 +85,7 @@ class MainWindow(QWidget):
         self._pages = [
             ("Dashboard", self.dashboard),
             ("New Backup", self.new_backup),
+            ("Backup Sets", self.sets),
             ("Backup History", self.history),
             ("Recover Files", self.recover),
             ("Backup Schedules", self.schedules),
@@ -137,6 +142,11 @@ class MainWindow(QWidget):
     def show_screen(self, name):
         """Switch to a screen by its name in the sidebar, e.g. "Cloud Providers"."""
         self.sidebar.setCurrentRow([screen for screen, _page in self._pages].index(name))
+
+    def _back_up_set(self, backup_set):
+        """The dashboard's Back up now: show the Backup Sets screen, where progress is visible."""
+        self.show_screen("Backup Sets")
+        self.sets.run_now(backup_set)
 
     def _show_page(self, index):
         self.pages.setCurrentIndex(index)

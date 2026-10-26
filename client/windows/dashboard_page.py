@@ -5,8 +5,11 @@ from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLay
 from client.api_client import ApiClient
 from client.workers import run_in_background
 
+from .sets_page import describe_last_backup
+
 MIN_PROVIDERS = 2
 NO_VALUE = "–"
+MAX_SET_SHORTCUTS = 3  # more than this would crowd the dashboard; the rest are one click away
 
 # The getting-started steps: (what to do, the screen that does it, the button's text).
 SETUP_STEPS = [
@@ -109,11 +112,15 @@ class _StepRow:
 
 
 class DashboardPage(QWidget):
-    def __init__(self, api_client: ApiClient, on_navigate=None):
-        """on_navigate(screen_name) switches the app to that screen, e.g. "New Backup"."""
+    def __init__(self, api_client: ApiClient, on_navigate=None, on_back_up=None):
+        """
+        on_navigate(screen_name) switches the app to that screen, e.g. "New Backup".
+        on_back_up(backup_set) starts a backup of one saved set (a dict, as the server returns it).
+        """
         super().__init__()
         self.api_client = api_client
         self._on_navigate = on_navigate
+        self._on_back_up = on_back_up
 
         title_font = QFont()
         title_font.setPointSize(16)
@@ -158,6 +165,21 @@ class DashboardPage(QWidget):
             setup_layout.addLayout(row.layout)
         self.setup_frame.hide()  # shown once we know setup isn't finished
 
+        self.sets_frame = QFrame()
+        self.sets_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        sets_heading = QLabel("Back up now")
+        sets_heading.setFont(heading_font)
+        self.set_rows = QVBoxLayout()  # one row per saved set, rebuilt on every refresh
+        self.set_rows.setSpacing(8)
+        sets_layout = QVBoxLayout(self.sets_frame)
+        sets_layout.setContentsMargins(16, 16, 16, 16)
+        sets_layout.setSpacing(10)
+        sets_layout.addWidget(sets_heading)
+        sets_layout.addLayout(self.set_rows)
+        self.set_buttons = []
+        self.show_all_button = None
+        self.sets_frame.hide()  # only when there is a saved set to offer
+
         self.status_label = QLabel("")
         self.status_label.setFont(body_font)
         self.status_label.setWordWrap(True)
@@ -169,6 +191,7 @@ class DashboardPage(QWidget):
         layout.addWidget(self.welcome_label)
         layout.addLayout(cards)
         layout.addWidget(self.setup_frame)
+        layout.addWidget(self.sets_frame)
         layout.addWidget(self.status_label)
         layout.addStretch()
 
@@ -183,6 +206,7 @@ class DashboardPage(QWidget):
         jobs = self.api_client.list_jobs()
         recoveries = self.api_client.list_recoveries()
         return {
+            "sets": self.api_client.list_sets(),
             "connected": sum(1 for p in providers if p["status"] == "connected"),
             "jobs": len(jobs),
             "recoveries": len(recoveries),
@@ -197,6 +221,7 @@ class DashboardPage(QWidget):
         self.recoveries_value.setText(str(counts["recoveries"]))
 
         self._apply_setup(counts)
+        self._apply_sets(counts["sets"])
         if not setup_complete(counts):
             self.status_label.setText("")  # the checklist already says what to do next
         elif counts["connected"] < MIN_PROVIDERS:
@@ -216,6 +241,55 @@ class DashboardPage(QWidget):
         self.setup_frame.setVisible(not setup_complete(counts))
         for number, (row, state) in enumerate(zip(self.step_rows, setup_states(counts)), start=1):
             row.show_state(number, state)
+
+    def _apply_sets(self, sets):
+        """Show a Back up now row for the first few saved sets, or nothing if there are none."""
+        while self.set_rows.count():  # forget last time's rows
+            item = self.set_rows.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                self._delete_layout(item.layout())
+        self.set_buttons = []
+        self.show_all_button = None
+        self.sets_frame.setVisible(bool(sets))
+
+        font = QFont()
+        font.setPointSize(11)
+        for backup_set in sets[:MAX_SET_SHORTCUTS]:
+            name = QLabel(backup_set["name"])
+            name.setFont(font)
+            name.setStyleSheet("font-weight: bold;")
+            when = QLabel(f"Last backed up: {describe_last_backup(backup_set)}")
+            when.setFont(font)
+            when.setStyleSheet("color: #555555;")
+            button = QPushButton("Back up now")
+            button.setFont(font)
+            button.setMinimumHeight(32)
+            button.clicked.connect(lambda _checked=False, s=backup_set: self._back_up(s))
+            self.set_buttons.append(button)
+            row = QHBoxLayout()
+            row.addWidget(name)
+            row.addWidget(when, 1)
+            row.addWidget(button)
+            self.set_rows.addLayout(row)
+
+        if len(sets) > MAX_SET_SHORTCUTS:
+            self.show_all_button = QPushButton(f"Show all {len(sets)} sets")
+            self.show_all_button.setFont(font)
+            self.show_all_button.clicked.connect(lambda _checked=False: self._go("Backup Sets"))
+            self.set_rows.addWidget(self.show_all_button)
+
+    @staticmethod
+    def _delete_layout(layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    def _back_up(self, backup_set):
+        if self._on_back_up:
+            self._on_back_up(backup_set)
 
     def _go(self, screen):
         if self._on_navigate:

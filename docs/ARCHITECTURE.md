@@ -83,7 +83,7 @@ when asked "why".
 ## 6. Data model
 
 `User`, `RateLimitCounter` (accounts) - `BackupJob`, `File`, `FileVersion`,
-`BackupSchedule`, `RecoveryOperation` (backups) - `CloudProvider`,
+`BackupSchedule`, `BackupSet`, `RecoveryOperation` (backups) - `CloudProvider`,
 `StorageLocation` (providers) - `IntegrityRecord` (protection) - `ActivityLog`
 (monitoring).
 
@@ -96,7 +96,7 @@ both whole files and individual fragments.
 ## 7. Size of the work
 
 About 5,050 lines of application code and 3,650 lines of tests (Python, excluding
-migrations), 27 API endpoints, 11 database models, 417 automated tests that run in
+migrations), 30 API endpoints, 12 database models, 472 automated tests that run in
 about one minute and need no cloud account.
 
 | Area | Code | Tests |
@@ -123,6 +123,8 @@ about one minute and need no cloud account.
   screen and every 5 minutes), but one failed check marks a provider as unreachable at once.
   A short network blip therefore shows a warning that clears at the next check. Requiring
   two failures in a row would remove that noise.
+- **Schedules and backup sets store paths from one computer.** They are only meaningful on the
+  computer where they were created.
 - **Local-folder providers are for development and demos only.**
 - **Scheduled backups need the app open.** A background service is not built.
 - **Rate limits are per client IP**, which needs real-address forwarding behind a proxy.
