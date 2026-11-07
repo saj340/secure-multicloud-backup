@@ -196,6 +196,29 @@ same client, so it still needs a server to talk to: start one with
 - Checked by launching the built program against the real HTTPS server: it logged in
   and loaded the dashboard, backups and schedules over verified TLS.
 
+## Installer (SecureBackup-Setup.exe)
+
+The packaged client can be wrapped in a normal Windows installer built with
+[Inno Setup](https://jrsoftware.org/isinfo.php) (a build tool only; nothing from it ships in the project).
+
+```bash
+python build_client.py                                   # 1. build dist/SecureBackup
+"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer\SecureBackup.iss   # 2. compile the installer
+```
+
+Result: `dist/installer/SecureBackup-Setup.exe` (about 37 MB; `dist/` is git-ignored). Always rebuild step 1
+first, so the installer contains the current code.
+
+- **Per-user install.** No administrator prompt; the program goes to `%LocalAppData%\Programs\SecureBackup`,
+  with a Start menu entry, an optional desktop shortcut and an entry in Windows' *Apps* list with Uninstall.
+- **Client only.** The server is not installed. Start it on the computer that acts as the server
+  (`python -m config.securerun`); with it off, the installed app shows "Could not reach the server".
+  The installed client talks to `https://127.0.0.1:8443` and trusts the bundled `dev-ca.pem`, exactly like the
+  packaged `.exe`, so it works as-is when the server runs on the same computer.
+- The script's `AppId` identifies the program to Windows (a newer setup upgrades the old install); never change it.
+- Checked by installing through the wizard, logging in to a running server, and uninstalling: the folder,
+  the *Apps* entry and the Start menu entry were all removed.
+
 ## Tests
 
 ```bash
