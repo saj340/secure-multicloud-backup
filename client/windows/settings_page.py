@@ -1,14 +1,17 @@
 from urllib.parse import urlparse
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -134,7 +137,10 @@ class SettingsPage(QWidget):
         self.connection_box.setFont(body_font)
         self.connection_box.setLayout(connection_layout)
 
-        layout = QVBoxLayout(self)
+        # The sections together are taller than a small window, so they sit in a scroll area:
+        # without it Qt squeezes them into each other instead of scrolling.
+        content = QWidget()
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(14)
         layout.addWidget(title)
@@ -143,6 +149,15 @@ class SettingsPage(QWidget):
         layout.addWidget(self.two_factor_box)
         layout.addWidget(self.connection_box)
         layout.addStretch()
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setWidget(content)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self.scroll_area)
 
     @staticmethod
     def _password_input(font):

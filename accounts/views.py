@@ -30,6 +30,10 @@ from .serializers import (
 )
 
 
+# A phone whose clock is a few minutes off shows codes the server rightly refuses; say so.
+CLOCK_HINT = " If codes keep failing, make sure your phone's date and time are set automatically."
+
+
 def _client_ip(request) -> str:
     # Behind a reverse proxy this is the proxy's address; see the README.
     return request.META.get("REMOTE_ADDR", "unknown")
@@ -121,7 +125,7 @@ class LoginView(APIView):
                     level=ActivityLog.Level.WARNING, ip=ip,
                 )
                 return Response(
-                    {"detail": "Invalid verification code."}, status=status.HTTP_401_UNAUTHORIZED
+                    {"detail": "Invalid verification code." + CLOCK_HINT}, status=status.HTTP_401_UNAUTHORIZED
                 )
             ratelimit.reset("login_code_user", who)
 
@@ -237,7 +241,7 @@ class TwoFactorEnableView(APIView):
             return _wrong("Start the setup first.")
         if not twofactor.verify_totp(user, serializer.validated_data["code"]):
             ratelimit.record("two_factor_user", who)
-            return _wrong("That code is not correct. Check the code in your app and try again.")
+            return _wrong("That code is not correct. Check the code in your app and try again." + CLOCK_HINT)
         ratelimit.reset("two_factor_user", who)
         user.totp_enabled = True
         user.save(update_fields=["totp_enabled"])

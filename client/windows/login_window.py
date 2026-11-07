@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QLabel,
+    QLayout,
     QLineEdit,
     QPushButton,
     QVBoxLayout,
@@ -14,6 +15,32 @@ from client.api_client import ApiClient, ApiError, TwoFactorRequired
 
 ERROR_STYLE = "color: #b00020;"
 NOTICE_STYLE = "color: #b26a00;"
+
+
+class MessageLabel(QLabel):
+    """A wrapped message that always has room for all of its lines.
+
+    A plain wrapped QLabel inside a window whose size follows its content is given too little
+    height when a long message appears, so the last line is clipped. This one asks for what
+    its text needs at its current width, and for at least two lines so the window doesn't
+    jump when a message appears.
+    """
+
+    def __init__(self):
+        super().__init__("")
+        self.setWordWrap(True)
+
+    def _fit(self):
+        two_lines = self.fontMetrics().lineSpacing() * 2 + 4
+        self.setMinimumHeight(max(two_lines, self.heightForWidth(self.width())))
+
+    def setText(self, text):
+        super().setText(text)
+        self._fit()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit()
 
 
 class LoginWindow(QWidget):
@@ -31,7 +58,6 @@ class LoginWindow(QWidget):
         self.on_login_success = on_login_success
         self.setWindowTitle("Secure Multi-Cloud Backup — Log in")
         self.resize(480, 400)
-        self.setMinimumSize(420, 360)
 
         title_font = QFont()
         title_font.setPointSize(16)
@@ -77,7 +103,7 @@ class LoginWindow(QWidget):
         self._awaiting_code = False
         self._set_code_step_visible(False)
 
-        self.status_label = QLabel("")
+        self.status_label = MessageLabel()
         self.status_label.setStyleSheet(ERROR_STYLE)
         self.status_label.setFont(field_font)
         self.status_label.setWordWrap(True)
@@ -131,6 +157,9 @@ class LoginWindow(QWidget):
         layout.addWidget(self.forgot_password_link)
         layout.addStretch()
         layout.addWidget(self.server_label)
+        # The minimum size follows the content, so the extra rows of the code step make the
+        # window taller instead of being squeezed into each other (a fixed minimum did that).
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         self.setLayout(layout)
 
     def show_notice(self, message):

@@ -201,7 +201,8 @@ class LoginTests(TwoFactorTestCase):
         Token.objects.all().delete()
         response = self.login(code=self.code(secret, steps=7))
         self.assertEqual(response.status_code, 401)
-        self.assertEqual(response.data["detail"], "Invalid verification code.")
+        self.assertTrue(response.data["detail"].startswith("Invalid verification code."))
+        self.assertIn("date and time are set automatically", response.data["detail"])
         self.assertEqual(Token.objects.count(), 0)
         self.assertIn(("login_failed", "warning"), self.actions())
 

@@ -130,7 +130,7 @@ It creates a throwaway account and leaves its work files in your temp folder.
 | Why not use an existing backup tool? | The project's point is the integration: local encryption, multi-provider distribution, integrity verification and recovery under failure. |
 | Did you write your own encryption? | No. Fernet from the `cryptography` library and Django's password hasher; two-factor codes come from the `pyotp` library, and QR codes from `segno`. The custom part is the design around them. |
 | What if I lose my phone? | One of the eight one-time backup codes works in place of the app; each is stored only as a hash and works once. Using one is logged as a warning. |
-| Is it tested? | 636 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
+| Is it tested? | 639 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
 | What would you do next? | PostgreSQL, a background service for schedules, Reed-Solomon, master-key rotation or a key management service. |
 
 ## If something goes wrong

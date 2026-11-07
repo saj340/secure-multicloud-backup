@@ -6,7 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from unittest import mock
 
 import pyotp
-from PySide6.QtWidgets import QApplication, QDialog
+from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
 from accounts import twofactor
 from accounts.models import User
@@ -85,7 +85,7 @@ class ApiClientTests(TwoFactorGuiCase):
         with self.assertRaises(ApiError) as caught:
             client.login(EMAIL, PASSWORD, "000000")
         self.assertNotIsInstance(caught.exception, TwoFactorRequired)
-        self.assertEqual(caught.exception.message, "Invalid verification code.")
+        self.assertTrue(caught.exception.message.startswith("Invalid verification code."))
 
     def test_a_wrong_password_is_an_ordinary_error(self):
         self.turn_on_via_api()
@@ -133,6 +133,31 @@ class LoginWindowTests(TwoFactorGuiCase):
             self.window.code_input.setText(code)
         self.window.login_button.click()
 
+    def assert_nothing_is_squashed(self):
+        self.window.show()
+        QApplication.processEvents()
+        for widget in self.window.findChildren(QWidget):
+            if widget.isVisibleTo(self.window) and widget.minimumSizeHint().height() > 0:
+                with self.subTest(widget=widget.__class__.__name__, text=getattr(widget, "text", lambda: "")()):
+                    self.assertGreaterEqual(widget.height(), widget.minimumSizeHint().height())
+
+    def test_neither_step_squashes_its_widgets(self):
+        # Found in the live demo: the code step's extra rows were squeezed into the rest.
+        self.assert_nothing_is_squashed()
+        self.submit()
+        self.assertTrue(self.window.code_input.isVisibleTo(self.window))
+        self.assert_nothing_is_squashed()
+
+    def test_the_long_wrong_code_message_is_not_clipped(self):
+        self.submit()
+        self.window.code_input.setText("000000")
+        self.window.login_button.click()
+        self.assertIn("set automatically", self.window.status_label.text())
+        self.window.show()
+        QApplication.processEvents()
+        label = self.window.status_label
+        self.assertGreaterEqual(label.height(), label.heightForWidth(label.width()))
+
     def test_the_code_step_is_hidden_until_it_is_needed(self):
         self.assertFalse(self.window.code_input.isVisibleTo(self.window))
         self.assertFalse(self.window.other_account_link.isVisibleTo(self.window))
@@ -161,7 +186,8 @@ class LoginWindowTests(TwoFactorGuiCase):
         self.window.code_input.setText("000000")
         self.window.login_button.click()
         self.assertEqual(self.users, [])
-        self.assertEqual(self.window.status_label.text(), "Invalid verification code.")
+        self.assertTrue(self.window.status_label.text().startswith("Invalid verification code."))
+        self.assertIn("set automatically", self.window.status_label.text())
         self.assertEqual(self.window.code_input.text(), "")
         self.assertTrue(self.window.code_input.isVisibleTo(self.window))
 
@@ -271,6 +297,7 @@ class TurnOnDialogTests(TwoFactorGuiCase):
         self.settle()
         self.assertEqual(self.dialog.pages.currentIndex(), TurnOnDialog.SCAN_PAGE)
         self.assertIn("not correct", self.dialog.message.text())
+        self.assertIn("set automatically", self.dialog.message.text())
         self.assertEqual(self.dialog.code_input.text(), "")
         self.assertFalse(self.dialog.enabled)
         self.assertFalse(self.api.me()["two_factor_enabled"])
@@ -392,6 +419,17 @@ class SettingsPageTwoFactorTests(TwoFactorGuiCase):
 
     def show_state(self):
         self.page.set_user(self.api.me())
+
+    def test_in_a_window_too_small_for_everything_the_page_scrolls_instead_of_squashing(self):
+        # Found in the live demo: with the two-factor section added, the page was taller than
+        # the window and Qt squeezed the sections into each other.
+        self.page.resize(900, 500)
+        self.page.show()
+        QApplication.processEvents()
+        for box in (self.page.profile_box, self.page.password_box, self.page.two_factor_box):
+            with self.subTest(box=box.title()):
+                self.assertGreaterEqual(box.height(), box.minimumSizeHint().height())
+        self.assertGreater(self.page.scroll_area.verticalScrollBar().maximum(), 0)
 
     def test_when_off_it_says_so_and_only_turn_on_is_available(self):
         self.show_state()
