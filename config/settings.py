@@ -160,6 +160,8 @@ RATE_LIMITS = {
     'reset_request_ip': (10, timedelta(hours=1)),        # reset codes requested from one IP
     'reset_confirm_ip': (10, timedelta(minutes=15)),     # wrong reset codes per IP
     'change_password_user': (5, timedelta(minutes=15)),  # wrong current passwords per account
+    'login_code_user': (5, timedelta(minutes=15)),       # wrong two-factor codes per account, from any IP
+    'two_factor_user': (5, timedelta(minutes=15)),       # wrong passwords/codes when managing two-factor
     'register_ip': (20, timedelta(hours=1)),             # sign-ups per IP
 }
 

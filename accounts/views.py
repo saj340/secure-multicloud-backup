@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 from monitoring.models import ActivityLog
 from monitoring.service import log_activity
 
-from . import ratelimit
+from . import ratelimit, twofactor
 from .models import User
 from .serializers import (
     ChangePasswordSerializer,
@@ -23,6 +23,9 @@ from .serializers import (
     PasswordResetRequestSerializer,
     ProfileUpdateSerializer,
     RegistrationSerializer,
+    TwoFactorCodeSerializer,
+    TwoFactorPasswordAndCodeSerializer,
+    TwoFactorPasswordSerializer,
     UserSerializer,
 )
 
@@ -94,12 +97,47 @@ class LoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
+        method = None
+        if user.totp_enabled:
+            code = serializer.validated_data.get("code", "").strip()
+            if not code:
+                # The password was right but that is only the first factor: no session yet.
+                return Response(
+                    {"detail": "Enter the code from your authenticator app.", "two_factor_required": True},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            who = str(user.pk)
+            # Whoever got this far knows the password, so wrong codes are counted per account
+            # as well as per IP: guessing a 6-digit code from many addresses still runs out.
+            if wait := ratelimit.blocked_for(("login_code_user", who)):
+                return _too_many(wait, "wrong verification codes")
+            method = twofactor.verify_second_factor(user, code)
+            if method is None:
+                ratelimit.record("login_code_user", who)
+                ratelimit.record("login_account", pair)
+                ratelimit.record("login_ip", ip)
+                log_activity(
+                    user, "login_failed", "Failed two-factor code.",
+                    level=ActivityLog.Level.WARNING, ip=ip,
+                )
+                return Response(
+                    {"detail": "Invalid verification code."}, status=status.HTTP_401_UNAUTHORIZED
+                )
+            ratelimit.reset("login_code_user", who)
+
         ratelimit.reset("login_account", pair)
         # A fresh token every login, so its lifetime starts now and any earlier
         # session (another device, a stolen token) ends.
         Token.objects.filter(user=user).delete()
         token = Token.objects.create(user=user)
-        log_activity(user, "login", "Signed in.", ip=ip)
+        if method == "backup":
+            log_activity(
+                user, "backup_code_used",
+                f"Signed in with a backup code; {twofactor.backup_codes_left(user)} left.",
+                level=ActivityLog.Level.WARNING, ip=ip,
+            )
+        else:
+            log_activity(user, "login", "Signed in.", ip=ip)
         return Response({"token": token.key, "user": UserSerializer(user).data})
 
 
@@ -155,6 +193,105 @@ class ChangePasswordView(APIView):
         token = Token.objects.create(user=user)
         log_activity(user, "password_changed", "Password changed; other sessions were signed out.")
         return Response({"token": token.key})
+
+
+def _wrong(message: str) -> Response:
+    return Response({"detail": message}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TwoFactorSetupView(APIView):
+    """Step 1 of turning two-factor on: a new secret for the authenticator app (not active yet)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        who = str(user.pk)
+        # A stolen session token must not be enough to enrol someone else's authenticator.
+        if wait := ratelimit.blocked_for(("two_factor_user", who)):
+            return _too_many(wait, "failed attempts")
+        serializer = TwoFactorPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not user.check_password(serializer.validated_data["password"]):
+            ratelimit.record("two_factor_user", who)
+            return _wrong("Your password is incorrect.")
+        if user.totp_enabled:
+            return _wrong("Two-factor login is already turned on.")
+        secret, uri = twofactor.begin_enrolment(user)
+        return Response({"secret": secret, "otpauth_uri": uri})
+
+
+class TwoFactorEnableView(APIView):
+    """Step 2: a code from the app proves it was set up correctly; then two-factor turns on."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        who = str(user.pk)
+        if wait := ratelimit.blocked_for(("two_factor_user", who)):
+            return _too_many(wait, "failed attempts")
+        serializer = TwoFactorCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not twofactor.has_pending_enrolment(user):
+            return _wrong("Start the setup first.")
+        if not twofactor.verify_totp(user, serializer.validated_data["code"]):
+            ratelimit.record("two_factor_user", who)
+            return _wrong("That code is not correct. Check the code in your app and try again.")
+        ratelimit.reset("two_factor_user", who)
+        user.totp_enabled = True
+        user.save(update_fields=["totp_enabled"])
+        codes = twofactor.generate_backup_codes(user)
+        log_activity(user, "two_factor_enabled", "Two-factor login turned on.")
+        return Response({"backup_codes": codes})
+
+
+def _confirm_identity(request):
+    """For sensitive changes: the password and a current code. Returns (user, error response)."""
+    user = request.user
+    who = str(user.pk)
+    if wait := ratelimit.blocked_for(("two_factor_user", who)):
+        return None, _too_many(wait, "failed attempts")
+    serializer = TwoFactorPasswordAndCodeSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    if not user.totp_enabled:
+        return None, _wrong("Two-factor login is not turned on.")
+    if not user.check_password(serializer.validated_data["password"]):
+        ratelimit.record("two_factor_user", who)
+        return None, _wrong("Your password is incorrect.")
+    if twofactor.verify_second_factor(user, serializer.validated_data["code"]) is None:
+        ratelimit.record("two_factor_user", who)
+        return None, _wrong("That code is not correct.")
+    ratelimit.reset("two_factor_user", who)
+    return user, None
+
+
+class TwoFactorDisableView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user, error = _confirm_identity(request)
+        if error:
+            return error
+        twofactor.turn_off(user)
+        log_activity(
+            user, "two_factor_disabled", "Two-factor login turned off.", level=ActivityLog.Level.WARNING
+        )
+        return Response({"detail": "Two-factor login is turned off."})
+
+
+class BackupCodesRenewView(APIView):
+    """Replace the backup codes, e.g. after using some. The old ones stop working."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user, error = _confirm_identity(request)
+        if error:
+            return error
+        codes = twofactor.generate_backup_codes(user)
+        log_activity(user, "backup_codes_renewed", "New backup codes were created.")
+        return Response({"backup_codes": codes})
 
 
 class PasswordResetRequestView(APIView):

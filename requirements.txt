@@ -12,6 +12,7 @@ h11==0.16.0
 idna==3.19
 jmespath==1.1.0
 pycparser==3.0
+PyOTP==2.10.0
 PySide6==6.11.2
 PySide6_Addons==6.11.2
 PySide6_Essentials==6.11.2
@@ -19,6 +20,7 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.3
 requests==2.34.2
 s3transfer==0.19.2
+segno==1.6.6
 shiboken6==6.11.2
 six==1.17.0
 sqlparse==0.6.0

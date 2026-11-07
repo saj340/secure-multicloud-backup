@@ -11,6 +11,7 @@ For each threat: what could go wrong, what the system does, and where to see it
 | File contents | A provider is down, deletes or corrupts data | XOR parity rebuilds any one lost fragment; hashes detect corruption |
 | Data in transit | Eavesdropping, man-in-the-middle | TLS; the client verifies the server certificate |
 | Accounts | Password guessing | Rate limiting, strong hashing, password rules |
+| Accounts | A stolen or guessed password | Optional two-factor login: a time-based code from an authenticator app (§5b) |
 | Accounts | Stolen session token | Tokens expire after 12 hours; one session per account; password change ends all others |
 | Provider credentials | Database leak | Stored encrypted with the master key; never returned by the API |
 | Server | Being pointed at internal services (SSRF) | User-supplied endpoints must be https and resolve to public addresses |
@@ -108,6 +109,8 @@ and shows the backup brings it back.
 | Reset code requests, per IP | 10 per hour |
 | Reset code attempts, per IP | 10 per 15 minutes |
 | Password change attempts, per user | 5 per 15 minutes |
+| Wrong two-factor codes at login, per account (any IP) | 5 per 15 minutes |
+| Wrong passwords or codes when managing two-factor, per user | 5 per 15 minutes |
 | Registrations, per IP | 20 per hour |
 
   A blocked request gets HTTP 429 with `Retry-After` and is refused **before** the
@@ -116,6 +119,41 @@ and shows the backup brings it back.
   cannot be used to find out who has an account. Counters are stored hashed in the
   database and survive restarts.
 - Code: `accounts/`. Tests: `accounts/test_auth.py`, `accounts/test_ratelimit.py`.
+
+## 5b. Two-factor login (TOTP)
+
+A password alone can be guessed, phished or leaked, so a user can turn on a second factor: the
+6-digit code an authenticator app (Google Authenticator, Microsoft Authenticator, Authy...)
+shows, which changes every 30 seconds (RFC 6238). The codes come from the `pyotp` library.
+
+- **Turning it on** (Settings): the user confirms their password, scans a QR code (or types the
+  key) into the app, and enters a code from it. Two-factor only switches on once a code has
+  proved the app is set up correctly, so a typo can't lock the user out of their own account.
+  Eight one-time **backup codes** are then shown once, for a lost phone.
+- **Logging in:** the password is checked first; if the account has two-factor on, the server
+  answers "code required" and creates no session until a valid code arrives. A wrong password
+  gets the same answer as before, so the "code required" reply never reveals whether an account
+  has two-factor, only that the password was right.
+- **A code works once.** The server keeps the newest 30-second step it has accepted and refuses
+  anything not newer, so a code that was watched over a shoulder or sniffed can't be replayed.
+  The check is a single atomic database update, so two requests racing with one code cannot both
+  succeed. Codes one period either side of the clock are accepted, for clock drift.
+- **Guessing codes:** someone with the password has 1,000,000 possible codes to try. Wrong codes
+  count against the normal login limits *and* against a separate limit per account that applies
+  from any address (5 per 15 minutes), so spreading guesses over many IP addresses doesn't help.
+- **Storage:** the shared secret is encrypted under the master key, like provider credentials,
+  and never returned after enrolment. Backup codes (80 random bits each) are stored only as
+  SHA-256 hashes, each usable once; using one is recorded as a warning in the activity log.
+- **Turning it off, or renewing backup codes,** needs the password *and* a current code (or a
+  backup code). Starting enrolment needs the password too, so a stolen session token alone cannot
+  enrol an attacker's authenticator or switch protection off. Renewing replaces all old codes.
+- **Password reset does not bypass it:** an emailed reset code changes the password, but the next
+  login still asks for the second factor.
+- Code: `accounts/twofactor.py` and the views in `accounts/views.py`. Tests:
+  `accounts/test_twofactor.py`. Mutation testing found one real bug here: full-width and
+  Arabic-Indic digits passed `str.isdigit()` yet crashed the constant-time comparison, which only
+  accepts ASCII; the check now requires ASCII digits and a test covers it.
+- Not built: remembering a trusted device, hardware keys (WebAuthn), SMS codes.
 
 ## 6. Provider credentials and server-side request forgery
 
@@ -176,7 +214,8 @@ and when and nothing more. Administrators can also see all entries in the Django
 
 ## 9. What this design does not defend against
 
-- A malicious or compromised **server operator** (holds the master key).
+- A malicious or compromised **server operator** (holds the master key, and so can also read
+  users' two-factor secrets).
 - Loss of the master key *without a backup of it*: wrapped data keys become unrecoverable,
   and with them every backup. §2b provides a passphrase-protected backup and a check; it
   works only if the user actually makes and safely stores the backup. Key rotation (re-wrapping

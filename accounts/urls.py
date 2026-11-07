@@ -10,6 +10,14 @@ urlpatterns = [
     path("logout/", views.LogoutView.as_view(), name="logout"),
     path("me/", views.MeView.as_view(), name="me"),
     path("change-password/", views.ChangePasswordView.as_view(), name="change-password"),
+    path("two-factor/setup/", views.TwoFactorSetupView.as_view(), name="two-factor-setup"),
+    path("two-factor/enable/", views.TwoFactorEnableView.as_view(), name="two-factor-enable"),
+    path("two-factor/disable/", views.TwoFactorDisableView.as_view(), name="two-factor-disable"),
+    path(
+        "two-factor/backup-codes/",
+        views.BackupCodesRenewView.as_view(),
+        name="two-factor-backup-codes",
+    ),
     path(
         "password-reset/request/",
         views.PasswordResetRequestView.as_view(),

@@ -1,6 +1,7 @@
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
+from . import twofactor
 from .models import User
 
 
@@ -36,12 +37,32 @@ class RegistrationSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+    # Only needed when the account has two-factor login turned on.
+    code = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=64)
 
 
 class UserSerializer(serializers.ModelSerializer):
+    two_factor_enabled = serializers.BooleanField(source="totp_enabled", read_only=True)
+    backup_codes_left = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "email", "full_name", "date_joined"]
+        fields = ["id", "email", "full_name", "date_joined", "two_factor_enabled", "backup_codes_left"]
+
+    def get_backup_codes_left(self, user):
+        return twofactor.backup_codes_left(user) if user.totp_enabled else 0
+
+
+class TwoFactorPasswordSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True)
+
+
+class TwoFactorCodeSerializer(serializers.Serializer):
+    code = serializers.CharField(write_only=True, max_length=64)
+
+
+class TwoFactorPasswordAndCodeSerializer(TwoFactorPasswordSerializer, TwoFactorCodeSerializer):
+    """Turning two-factor off or renewing backup codes needs both: who you are and the second factor."""
 
 
 class ProfileUpdateSerializer(serializers.ModelSerializer):
