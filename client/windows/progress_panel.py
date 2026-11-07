@@ -75,8 +75,36 @@ class ProgressPanel(QWidget):
             self.progress_bar.setRange(0, total)
             if stage in ("processed", "completed"):
                 self.progress_bar.setValue(done)
-        if stage in ("protecting", "uploading") and total:
+        # Restoring a whole backup reports "downloading" with a count; restoring one file doesn't.
+        if stage in ("protecting", "uploading", "downloading") and total:
             self.file_label.setText(f"{Path(detail).name}  ({done + 1} of {total})")
+
+    def show_restore_summary(self, summary) -> bool:
+        """Show how restoring a whole backup ended. Returns True if nothing went wrong."""
+        self.file_label.setText("")
+        parts = [f"Restored {files_text(len(summary.restored))}"]
+        if summary.skipped:
+            parts.append(f"{len(summary.skipped)} already there and left alone")
+        if summary.failed:
+            parts.append(f"{len(summary.failed)} could not be restored")
+        message = ", ".join(parts) + "."
+
+        if not summary.failed:
+            self.failures_box.hide()
+            self.stage_label.setText(STAGE_TEXT["completed"])
+            self.progress_bar.setRange(0, 1)
+            self.progress_bar.setValue(1)
+            self.show_message(message, OK_STYLE)
+            return True
+
+        self.failures_box.setPlainText(
+            "\n".join(f"{path}\n    {reason}" for path, reason in summary.failed.items())
+        )
+        self.failures_box.show()
+        self.stage_label.setText("Finished with problems")
+        # Some files back is a partial success, none is a failure.
+        self.show_message(message, WARN_STYLE if summary.restored else ERROR_STYLE)
+        return False
 
     def show_message(self, message, style):
         self.result_label.setStyleSheet(style)
@@ -119,6 +147,12 @@ class ProgressPanel(QWidget):
     def show_failure(self, message):
         self._set_progress_visible(False)
         self.show_message(message, ERROR_STYLE)
+
+    def show_notice(self, message):
+        """A neutral message for something that wasn't a failure, such as a cancelled restore."""
+        self._set_progress_visible(False)
+        self.failures_box.hide()
+        self.show_message(message, "color: #555555;")
 
     def _set_progress_visible(self, visible):
         for widget in (self.stage_label, self.file_label, self.progress_bar):

@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -15,12 +16,12 @@ from PySide6.QtWidgets import (
 )
 
 from client.api_client import ApiClient
-from client.backup_service import load_backups, restore_version
+from client.backup_service import load_backups, plan_restore, restore_backup, restore_version
 from client.formatting import describe_status, format_timestamp
 from client.workers import run_in_background
 
 from .backup_tree import BackupTree
-from .progress_panel import ERROR_STYLE, ProgressPanel
+from .progress_panel import ERROR_STYLE, ProgressPanel, files_text
 
 MUTED_STYLE = "color: #555555;"
 HISTORY_COLUMNS = ["File", "Version", "Status", "Started", "Finished"]
@@ -43,8 +44,8 @@ class RecoverPage(QWidget):
 
         hint = QLabel(
             "Choose a file (its newest version is used) or a specific version, then restore "
-            "it. The pieces are gathered from your providers, checked, and decrypted on "
-            "this device."
+            "it. Or restore a whole backup into a folder, keeping its folder layout. The "
+            "pieces are gathered from your providers, checked, and decrypted on this device."
         )
         hint.setFont(body_font)
         hint.setWordWrap(True)
@@ -60,15 +61,18 @@ class RecoverPage(QWidget):
         self.empty_label.hide()
 
         self.restore_button = QPushButton("Restore selected…")
+        self.restore_all_button = QPushButton("Restore whole backup…")
         self.refresh_button = QPushButton("Refresh")
-        for button in (self.restore_button, self.refresh_button):
+        for button in (self.restore_button, self.restore_all_button, self.refresh_button):
             button.setFont(body_font)
             button.setMinimumHeight(34)
         self.restore_button.clicked.connect(self.restore_selected)
+        self.restore_all_button.clicked.connect(self.restore_whole_selected)
         self.refresh_button.clicked.connect(self.refresh)
 
         buttons = QHBoxLayout()
         buttons.addWidget(self.restore_button)
+        buttons.addWidget(self.restore_all_button)
         buttons.addStretch()
         buttons.addWidget(self.refresh_button)
 
@@ -137,6 +141,77 @@ class RecoverPage(QWidget):
             on_progress=self.panel.progress,
         )
 
+    def restore_whole_selected(self):
+        job_id = self.tree.selected_job_id()  # any row inside a backup selects that backup
+        if job_id is None:
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Choose where to restore this backup")
+        if folder:
+            self.restore_whole(job_id, folder)
+
+    def restore_whole(self, job_id, folder, overwrite=None):
+        """
+        Restore every file of a backup into folder. overwrite=None asks first if any file
+        is already there; True replaces such files, False leaves them alone.
+        """
+        self._busy = True
+        self._update_buttons()
+        self._show("", MUTED_STYLE)
+        self.panel.start()
+
+        def plan():
+            job = self.api_client.get_job(job_id)  # fresh, so it has every file and version
+            return job, plan_restore(job, folder)
+
+        run_in_background(
+            plan,
+            on_success=lambda result: self._planned(result, folder, overwrite),
+            on_error=self._restore_failed,
+        )
+
+    def _planned(self, result, folder, overwrite):
+        job, plan = result
+        existing = [item for item in plan.items if item.target.exists()]
+        if existing and overwrite is None:
+            overwrite = self._ask_about_existing(len(existing), len(plan.items))
+            if overwrite is None:  # cancelled
+                self._busy = False
+                self.panel.show_notice("Restore cancelled. Nothing was changed.")
+                self._update_buttons()
+                return
+        run_in_background(
+            lambda report: restore_backup(
+                self.api_client, job, folder, overwrite=bool(overwrite), progress=report
+            ),
+            on_success=self._restored_all,
+            on_error=self._restore_failed,
+            on_progress=self.panel.progress,
+        )
+
+    def _ask_about_existing(self, count, total):
+        """True to replace the existing files, False to keep them, None to cancel."""
+        box = QMessageBox(self)
+        box.setWindowTitle("Files already exist")
+        box.setText(
+            f"{count} of {files_text(total)} already exist in that folder.\n\n"
+            "Replace them with the backed-up versions, or keep the files that are already there?"
+        )
+        replace = box.addButton("Replace them", QMessageBox.ButtonRole.DestructiveRole)
+        keep = box.addButton("Keep the existing ones", QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(keep)
+        box.exec()
+        if box.clickedButton() is replace:
+            return True
+        if box.clickedButton() is keep:
+            return False
+        return None
+
+    def _restored_all(self, summary):
+        self._busy = False
+        self.panel.show_restore_summary(summary)
+        self.refresh()
+
     def _loaded(self, data):
         jobs, recoveries = data
         self._busy = False
@@ -187,5 +262,8 @@ class RecoverPage(QWidget):
     def _update_buttons(self):
         self.restore_button.setEnabled(
             not self._busy and self.tree.selected_recoverable_version() is not None
+        )
+        self.restore_all_button.setEnabled(
+            not self._busy and self.tree.selected_job_id() is not None
         )
         self.refresh_button.setEnabled(not self._busy)

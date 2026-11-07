@@ -106,6 +106,18 @@ For each threat: what could go wrong, what the system does, and where to see it
 - Code: `providers/endpoints.py`, `providers/manager.py`. Tests:
   `providers/test_endpoints.py`, `providers/test_s3.py`.
 
+## 6b. Restoring files safely
+
+When a whole backup is restored, each file's destination is built from the path stored on the
+server. That path is untrusted data: a compromised or buggy server could send one containing
+`..` to try to make the app write over files elsewhere on the computer (the same idea as the
+"zip slip" attack on archive extractors). The app refuses any path that is absolute, contains
+`..`, or resolves to somewhere outside the folder the user chose, and reports it as a failure
+instead of writing it. A file is also written under a temporary name and renamed only when it
+is complete, so a failed restore never leaves half a file behind.
+Code: `safe_target` and `plan_restore` in `client/backup_service.py`.
+Tests: `client/test_restore_backup.py`.
+
 ## 7. Authorization
 
 Every backup, file, provider, schedule and recovery is owned by a user, and queries

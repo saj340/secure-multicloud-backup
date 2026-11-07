@@ -27,6 +27,29 @@ class BackupResult:
     failed: dict = field(default_factory=dict)
 
 
+@dataclass
+class RestoreItem:
+    source: str  # the file's original path, as it was backed up
+    version: dict  # the version that will be restored
+    target: Path  # where it will be written
+
+
+@dataclass
+class RestorePlan:
+    """What restoring a whole backup would do, worked out before anything is written."""
+
+    items: list = field(default_factory=list)
+    unavailable: list = field(default_factory=list)  # files with no complete version stored
+    unsafe: dict = field(default_factory=dict)  # source path -> why it was refused
+
+
+@dataclass
+class RestoreSummary:
+    restored: list = field(default_factory=list)  # paths written
+    skipped: list = field(default_factory=list)  # already there, left alone
+    failed: dict = field(default_factory=dict)  # source path -> reason
+
+
 def collect_files(paths) -> list[Path]:
     """Expand a selection of files and folders into a de-duplicated list of files."""
     files = []
@@ -93,6 +116,95 @@ def restore_version(
     api.complete_recovery(operation_id)
     _report(progress, "completed", str(destination))
     return destination
+
+
+def _newest_completed(file: dict):
+    """The file's newest version that was stored completely, or None."""
+    completed = [v for v in file["versions"] if v["upload_status"] == "completed"]
+    return max(completed, key=lambda v: v["version_number"]) if completed else None
+
+
+def _relative_paths(sources) -> list[Path]:
+    """
+    Each path relative to the deepest folder that all of them share, so the folder
+    layout comes back without the long path above it (C:\\Users\\me\\...).
+    """
+    paths = [Path(source) for source in sources]
+    try:
+        base = Path(os.path.commonpath([str(path.parent) for path in paths]))
+        return [path.relative_to(base) for path in paths]
+    except ValueError:
+        # Files from different drives (C: and D:) have no folder in common, so the
+        # drive letter becomes a top-level folder instead.
+        return [Path(path.drive.rstrip(":\\/"), *path.parts[1:]) if path.anchor else path for path in paths]
+
+
+def safe_target(destination: Path, relative: Path):
+    """
+    destination/relative, or None if that would land outside destination.
+
+    The paths come from the server, so they are treated as untrusted: a path with ".."
+    in it must never be able to write somewhere else on the computer.
+    """
+    if relative.is_absolute() or ".." in relative.parts:
+        return None
+    target = destination / relative
+    try:
+        target.resolve().relative_to(destination.resolve())
+    except ValueError:
+        return None
+    return target
+
+
+def plan_restore(job: dict, destination) -> RestorePlan:
+    """Work out, without writing anything, where each file of a backup would be restored."""
+    destination = Path(destination)
+    plan = RestorePlan()
+    files = job["files"]
+    for file, relative in zip(files, _relative_paths([f["original_path"] for f in files])):
+        version = _newest_completed(file)
+        if version is None:
+            plan.unavailable.append(file["original_path"])
+            continue
+        target = safe_target(destination, relative)
+        if target is None:
+            plan.unsafe[file["original_path"]] = "Refused: it would be written outside the chosen folder."
+            continue
+        plan.items.append(RestoreItem(file["original_path"], version, target))
+    return plan
+
+
+def restore_backup(
+    api: ApiClient, job: dict, destination, overwrite=False, progress=None
+) -> RestoreSummary:
+    """
+    Restore every file of a backup into destination, keeping its folder layout.
+
+    A file that fails doesn't stop the others; the summary says what was restored, what
+    was left alone because it already existed (unless overwrite is True), and what failed.
+    Reports downloading for each file (done = files finished so far), then processed, then completed.
+    """
+    plan = plan_restore(job, destination)
+    summary = RestoreSummary()
+    for path in plan.unavailable:
+        summary.failed[path] = "No complete version of this file was stored."
+    summary.failed.update(plan.unsafe)
+
+    total = len(plan.items)
+    _report(progress, "preparing", "")
+    for index, item in enumerate(plan.items):
+        if item.target.exists() and not overwrite:
+            summary.skipped.append(str(item.target))
+        else:
+            _report(progress, "downloading", str(item.target), index, total)
+            try:
+                restore_version(api, item.version["id"], item.target, overwrite=True)
+                summary.restored.append(str(item.target))
+            except (ApiError, DecryptionFailed, OSError) as exc:
+                summary.failed[item.source] = getattr(exc, "message", None) or str(exc)
+        _report(progress, "processed", str(item.target), index + 1, total)
+    _report(progress, "completed", "", total, total)
+    return summary
 
 
 def _run_job(api: ApiClient, job: dict, progress) -> BackupResult:

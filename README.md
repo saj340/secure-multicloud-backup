@@ -140,6 +140,18 @@ files you added since last time are included. Each run is stored as its own date
 last run went is shown next to the set. Deleting a set keeps the backups it already made.
 As with schedules, the paths are those of the computer where the set was saved.
 
+## Restoring a whole backup
+
+On **Recover Files**, select a backup (or any file inside it) and press **Restore whole backup**,
+then choose a folder. Every file of that backup comes back, each at its newest complete version,
+with its folder layout kept relative to the folder the files share (files from different drives get
+the drive letter as a folder). If some files already exist there you are asked once whether to
+replace them or keep them. One file failing doesn't stop the others: the result says how many were
+restored, how many were left alone, and lists each failure with its reason.
+
+File paths come from the server, so they are treated as untrusted: a path that would be written
+outside the folder you chose is refused and reported.
+
 ## Cloud providers
 
 | Type | Notes |
