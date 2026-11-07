@@ -34,6 +34,32 @@ For each threat: what could go wrong, what the system does, and where to see it
 - Code: `protection/crypto.py`, `client/crypto.py`. Tests: `protection/tests.py`
   (includes corrupted and malformed input raising `DecryptionError`).
 
+### 2b. Backing up the master key
+
+The master key is a single point of failure: every wrapped file key and every provider's
+credentials depend on it, so losing it (a deleted `.env`, a dead disk) makes every backup
+unreadable, however safe the cloud copies are. Three management commands cover this:
+
+| Command | What it does |
+|---|---|
+| `check_master_key` | Tries the key in `.env` on every stored file key and provider credential and reports how many decrypt. Fails loudly if any does not. With nothing stored it says so instead of claiming success. |
+| `backup_master_key FILE` | Writes the key to FILE, encrypted under a passphrase (at least 12 characters, typed twice, never given on the command line). Refuses to overwrite a file, and refuses any location inside the project folder, which is a git repository. It reads the file back and decrypts it before reporting success. |
+| `restore_master_key FILE` | Decrypts the backup with the passphrase, runs the same check against the database, and only then shows the `MASTER_KEK=` line to put in `.env`. A key that does not decrypt the stored data is rejected. It changes nothing by itself. |
+
+The passphrase is turned into a key with scrypt (n=2^15, r=8, p=1: deliberately slow and
+memory-hungry, so guessing passphrases is expensive) and the key is encrypted with Fernet. The
+file holds a random salt, the scrypt settings, a short fingerprint of the key (a hash, so it
+identifies the key without revealing it) and the encrypted key. A backup file is treated as
+untrusted input: settings that would demand absurd memory or time are refused before any work
+is done, the same defensive habit as the restore path checks in §6b.
+
+The backup file and the passphrase must be stored in different places, away from this
+computer. This reduces the risk but does not remove it: whoever has both can decrypt every
+backup, so they are as sensitive as the key itself.
+Code: `protection/keytools.py`, `protection/management/commands/`.
+Tests: `protection/test_keytools.py`, including one that replaces the key (stranding the data)
+and shows the backup brings it back.
+
 ## 3. Fragmentation, redundancy, integrity
 
 - With n healthy providers the ciphertext is cut into n-1 equal data fragments plus
@@ -151,9 +177,10 @@ and when and nothing more. Administrators can also see all entries in the Django
 ## 9. What this design does not defend against
 
 - A malicious or compromised **server operator** (holds the master key).
-- Loss of the master key: wrapped data keys become unrecoverable, and with them
-  every backup. In production the key needs its own protected backup or a key
-  management service.
+- Loss of the master key *without a backup of it*: wrapped data keys become unrecoverable,
+  and with them every backup. §2b provides a passphrase-protected backup and a check; it
+  works only if the user actually makes and safely stores the backup. Key rotation (re-wrapping
+  everything under a new key) and a key management service are not built.
 - Simultaneous loss or corruption of **two** providers.
 - Malware on the user's own computer (it sees plaintext before encryption).
 - Denial of service beyond simple rate limits.

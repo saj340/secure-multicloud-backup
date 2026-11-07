@@ -173,8 +173,9 @@ DEFAULT_FROM_EMAIL = 'noreply@securebackup.local'
 
 # Master Key Encryption Key (KEK): wraps the random per-file-version data
 # keys used for envelope encryption. Never stored in the database, never
-# committed to git. If this is ever rotated, every wrapped key already in
-# the database becomes unrecoverable, so treat it like SECRET_KEY.
+# committed to git. If this is ever lost or changed, every wrapped key already
+# in the database becomes unrecoverable, so treat it like SECRET_KEY and keep a
+# backup: `manage.py backup_master_key` (see docs/SECURITY.md section 2b).
 MASTER_KEK = os.environ['MASTER_KEK']
 
 # A "local folder" provider lets whoever connects it point the server at any

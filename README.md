@@ -77,6 +77,20 @@ key or file to a server whose certificate it can't verify.
 The tests expect `DEBUG=True` (as in `.env.example`), since the production settings
 redirect plain http to https.
 
+## The master key (back it up)
+
+`MASTER_KEK` in `.env` protects every file's encryption key and every provider's credentials. **If it is
+lost, every backup becomes unreadable.** Three commands (run from the project folder, with the venv active):
+
+```bash
+python manage.py check_master_key                        # does the key in .env decrypt everything stored?
+python manage.py backup_master_key D:\keys\smcb-key.json   # passphrase-protected copy; must be outside the project
+python manage.py restore_master_key D:\keys\smcb-key.json  # recover it, prove it works, show the .env line
+```
+
+Keep the backup file and its passphrase in different places, away from this computer. Details and the
+reasoning are in [docs/SECURITY.md](docs/SECURITY.md) §2b.
+
 ## Accounts and sessions
 
 - A login token stops working `AUTH_TOKEN_LIFETIME_HOURS` (default 12) after it was
