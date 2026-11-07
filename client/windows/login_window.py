@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from client.api_client import ApiClient, ApiError
+from client.api_client import ApiClient, ApiError, TwoFactorRequired
 
 ERROR_STYLE = "color: #b00020;"
 NOTICE_STYLE = "color: #b26a00;"
@@ -61,6 +61,22 @@ class LoginWindow(QWidget):
         self.password_input.setFont(field_font)
         self.password_input.setMinimumHeight(36)
 
+        # Shown only when the account has two-factor login: a code from the authenticator app.
+        self.code_label = QLabel("Verification code")
+        self.code_label.setFont(field_font)
+        self.code_input = QLineEdit()
+        self.code_input.setPlaceholderText("6-digit code, or a backup code")
+        self.code_input.setFont(field_font)
+        self.code_input.setMinimumHeight(36)
+        self.code_input.setMaxLength(64)
+        self.other_account_link = QPushButton("Use a different account")
+        self.other_account_link.setFont(small_font)
+        self.other_account_link.setFlat(True)
+        self.other_account_link.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.other_account_link.clicked.connect(self._reset_two_factor)
+        self._awaiting_code = False
+        self._set_code_step_visible(False)
+
         self.status_label = QLabel("")
         self.status_label.setStyleSheet(ERROR_STYLE)
         self.status_label.setFont(field_font)
@@ -72,6 +88,7 @@ class LoginWindow(QWidget):
         self.login_button.clicked.connect(self.handle_login)
         self.email_input.returnPressed.connect(self.handle_login)
         self.password_input.returnPressed.connect(self.handle_login)
+        self.code_input.returnPressed.connect(self.handle_login)
 
         self.register_link = QPushButton("Need an account? Register")
         self.register_link.setFont(field_font)
@@ -104,8 +121,11 @@ class LoginWindow(QWidget):
         layout.addWidget(self.email_input)
         layout.addWidget(password_label)
         layout.addWidget(self.password_input)
+        layout.addWidget(self.code_label)
+        layout.addWidget(self.code_input)
         layout.addSpacing(8)
         layout.addWidget(self.login_button)
+        layout.addWidget(self.other_account_link)
         layout.addWidget(self.status_label)
         layout.addWidget(self.register_link)
         layout.addWidget(self.forgot_password_link)
@@ -126,24 +146,57 @@ class LoginWindow(QWidget):
         if self.on_forgot_password_requested:
             self.on_forgot_password_requested()
 
+    def _set_code_step_visible(self, visible):
+        for widget in (self.code_label, self.code_input, self.other_account_link):
+            widget.setVisible(visible)
+
+    def _ask_for_code(self):
+        """The password was right; the account also needs its second factor."""
+        self._awaiting_code = True
+        self._set_code_step_visible(True)
+        # The password has been accepted, so lock it in: changing it now would just fail.
+        self.email_input.setReadOnly(True)
+        self.password_input.setReadOnly(True)
+        self.login_button.setText("Verify and log in")
+        self.status_label.setStyleSheet(NOTICE_STYLE)
+        self.status_label.setText("Enter the code from your authenticator app.")
+        self.code_input.setFocus()
+
+    def _reset_two_factor(self):
+        self._awaiting_code = False
+        self._set_code_step_visible(False)
+        self.code_input.clear()
+        self.email_input.setReadOnly(False)
+        self.password_input.setReadOnly(False)
+        self.login_button.setText("Log in")
+        self.status_label.setText("")
+
     def handle_login(self):
         email = self.email_input.text().strip()
         password = self.password_input.text()
+        code = self.code_input.text().strip() if self._awaiting_code else None
         self.status_label.setStyleSheet(ERROR_STYLE)
 
         if not email or not password:
             self.status_label.setText("Email and password are required.")
+            return
+        if self._awaiting_code and not code:
+            self.status_label.setText("Enter the code from your authenticator app.")
             return
 
         self.login_button.setEnabled(False)
         self.status_label.setText("")
 
         try:
-            user = self.api_client.login(email, password)
+            user = self.api_client.login(email, password, code)
+        except TwoFactorRequired:
+            self._ask_for_code()
         except ApiError as exc:
             self.status_label.setText(exc.message)
+            self.code_input.clear()  # a wrong code is retyped, not edited
         else:
             self.password_input.clear()
+            self._reset_two_factor()
             if self.on_login_success:
                 self.on_login_success(user)
         finally:

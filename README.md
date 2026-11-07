@@ -101,6 +101,13 @@ reasoning are in [docs/SECURITY.md](docs/SECURITY.md) §2b.
   strength rules as registration (including "too similar to your email"), signs out
   every other session, and gives the app that made the change a fresh token.
 - Only the name is editable in the profile; the email is the login identity.
+- **Two-factor login (optional).** In Settings, *Turn on…* walks through it: confirm the password, scan a QR
+  code with an authenticator app (Google Authenticator, Microsoft Authenticator, Authy), type the code it
+  shows, then save eight one-time backup codes (shown once). After that, logging in asks for a code after the
+  password; a backup code works instead of the app, once. Turning it off or making new backup codes needs the
+  password and a code. A code can be used only once, and wrong codes are rate limited per account. See
+  [docs/SECURITY.md](docs/SECURITY.md) §5b. Needs `pip install -r requirements.txt` (adds `pyotp` and `segno`)
+  and `python manage.py migrate`.
 - Guessable operations are rate limited (`RATE_LIMITS` in `config/settings.py`, code in
   `accounts/ratelimit.py`): 5 failed logins per IP and email per 15 minutes (30 per IP
   across accounts), 3 reset codes per email per hour, wrong reset codes, wrong current

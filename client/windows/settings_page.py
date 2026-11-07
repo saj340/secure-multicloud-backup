@@ -2,8 +2,10 @@ from urllib.parse import urlparse
 
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
+    QDialog,
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -15,6 +17,7 @@ from client.api_client import ApiClient
 from client.workers import run_in_background
 
 from .progress_panel import ERROR_STYLE, OK_STYLE
+from .two_factor_dialogs import BackupCodesDialog, ConfirmIdentityDialog, TurnOnDialog
 
 
 class SettingsPage(QWidget):
@@ -79,6 +82,33 @@ class SettingsPage(QWidget):
         self.password_box.setFont(body_font)
         self.password_box.setLayout(password_layout)
 
+        # ----------------------------------------------------- two-factor
+        self.two_factor_status = QLabel("")
+        self.two_factor_status.setFont(body_font)
+        self.two_factor_status.setWordWrap(True)
+        self.turn_on_button = QPushButton("Turn on…")
+        self.turn_off_button = QPushButton("Turn off…")
+        self.new_codes_button = QPushButton("New backup codes…")
+        for button in (self.turn_on_button, self.turn_off_button, self.new_codes_button):
+            button.setFont(body_font)
+        self.turn_on_button.clicked.connect(self.turn_on_two_factor)
+        self.turn_off_button.clicked.connect(self.turn_off_two_factor)
+        self.new_codes_button.clicked.connect(self.renew_backup_codes)
+        self.two_factor_message = self._message_label(body_font)
+        two_factor_buttons = QHBoxLayout()
+        two_factor_buttons.addWidget(self.turn_on_button)
+        two_factor_buttons.addWidget(self.turn_off_button)
+        two_factor_buttons.addWidget(self.new_codes_button)
+        two_factor_buttons.addStretch()
+        two_factor_layout = QVBoxLayout()
+        two_factor_layout.addWidget(self.two_factor_status)
+        two_factor_layout.addLayout(two_factor_buttons)
+        two_factor_layout.addWidget(self.two_factor_message)
+        self.two_factor_box = QGroupBox("Two-factor login")
+        self.two_factor_box.setFont(body_font)
+        self.two_factor_box.setLayout(two_factor_layout)
+        self._two_factor_on = False
+
         # ----------------------------------------------------- connection
         server = urlparse(api_client.base_url)
         encrypted = server.scheme == "https"
@@ -110,6 +140,7 @@ class SettingsPage(QWidget):
         layout.addWidget(title)
         layout.addWidget(self.profile_box)
         layout.addWidget(self.password_box)
+        layout.addWidget(self.two_factor_box)
         layout.addWidget(self.connection_box)
         layout.addStretch()
 
@@ -133,6 +164,20 @@ class SettingsPage(QWidget):
     def set_user(self, user):
         self.email_label.setText(user["email"])
         self.name_input.setText(user.get("full_name") or "")
+        self._two_factor_on = bool(user.get("two_factor_enabled"))
+        if self._two_factor_on:
+            left = user.get("backup_codes_left", 0)
+            self.two_factor_status.setStyleSheet(OK_STYLE)
+            self.two_factor_status.setText(
+                f"On. You are asked for a code from your authenticator app when you log in. "
+                f"Backup codes left: {left}."
+            )
+        else:
+            self.two_factor_status.setStyleSheet("color: #555555;")
+            self.two_factor_status.setText(
+                "Off. Turning it on means a stolen or guessed password is not enough to log in."
+            )
+        self._update_buttons()
 
     def refresh(self):
         run_in_background(self.api_client.me, self.set_user, self._load_failed)
@@ -186,6 +231,64 @@ class SettingsPage(QWidget):
             OK_STYLE,
         )
 
+    # --------------------------------------------------------- two-factor
+
+    def turn_on_two_factor(self):
+        dialog = TurnOnDialog(self.api_client, self)
+        dialog.exec()
+        if dialog.enabled:
+            self._show(self.two_factor_message, "Two-factor login is on.", OK_STYLE)
+        self.refresh()
+
+    def turn_off_two_factor(self):
+        values = self._ask_identity(
+            "Turn off two-factor login",
+            "Turning it off means your password alone is enough to log in again. "
+            "Confirm with your password and a current code (or a backup code).",
+        )
+        if values:
+            self._start(
+                self.two_factor_message,
+                "Turning off…",
+                lambda: self.api_client.two_factor_disable(*values),
+                self._two_factor_changed("Two-factor login is off."),
+            )
+
+    def renew_backup_codes(self):
+        values = self._ask_identity(
+            "New backup codes",
+            "Creating new backup codes makes the old ones stop working. "
+            "Confirm with your password and a current code (or a backup code).",
+        )
+        if values:
+            self._start(
+                self.two_factor_message,
+                "Creating new codes…",
+                lambda: self.api_client.renew_backup_codes(*values),
+                self._backup_codes_renewed,
+            )
+
+    def _ask_identity(self, title, explanation):
+        dialog = ConfirmIdentityDialog(title, explanation, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            return dialog.values()
+        return None
+
+    def _two_factor_changed(self, message):
+        def done(_result):
+            self._busy = False
+            self._update_buttons()
+            self._show(self.two_factor_message, message, OK_STYLE)
+            self.refresh()
+        return done
+
+    def _backup_codes_renewed(self, codes):
+        self._busy = False
+        self._update_buttons()
+        self._show(self.two_factor_message, "New backup codes created.", OK_STYLE)
+        BackupCodesDialog(codes, self).exec()
+        self.refresh()
+
     # ------------------------------------------------------------- helpers
 
     def _start(self, message_label, message, fn, on_success):
@@ -207,3 +310,6 @@ class SettingsPage(QWidget):
     def _update_buttons(self):
         self.save_button.setEnabled(not self._busy)
         self.change_button.setEnabled(not self._busy)
+        self.turn_on_button.setEnabled(not self._busy and not self._two_factor_on)
+        self.turn_off_button.setEnabled(not self._busy and self._two_factor_on)
+        self.new_codes_button.setEnabled(not self._busy and self._two_factor_on)

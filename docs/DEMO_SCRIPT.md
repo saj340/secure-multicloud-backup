@@ -113,6 +113,11 @@ It creates a throwaway account and leaves its work files in your temp folder.
   the dashboard.
 - **Settings**: change password; mention that it signs out every other session and
   that login attempts are rate limited.
+- **Two-factor login**: in Settings press *Turn on…*, confirm the password, scan the QR code with
+  an authenticator app and type the 6-digit code, then save the backup codes. Log out and log in
+  again: after the password the app asks for the code. Say: "A stolen or guessed password is no
+  longer enough. A code works once, so a copied code can't be replayed, and wrong guesses are
+  limited per account from any address." (Needs a phone with an authenticator app.)
 
 ## Questions to expect, and short answers
 
@@ -123,8 +128,9 @@ It creates a throwaway account and leaves its work files in your temp folder.
 | What if two providers fail? | Recovery reports failure. XOR parity tolerates one. Reed-Solomon would tolerate more; it is the documented upgrade. |
 | Why XOR parity and not replication? | No provider holds a whole file, and the storage overhead is 1/(n-1) instead of 100% or more. |
 | Why not use an existing backup tool? | The project's point is the integration: local encryption, multi-provider distribution, integrity verification and recovery under failure. |
-| Did you write your own encryption? | No. Fernet from the `cryptography` library and Django's password hasher. The custom part is the design around them. |
-| Is it tested? | 545 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
+| Did you write your own encryption? | No. Fernet from the `cryptography` library and Django's password hasher; two-factor codes come from the `pyotp` library, and QR codes from `segno`. The custom part is the design around them. |
+| What if I lose my phone? | One of the eight one-time backup codes works in place of the app; each is stored only as a hash and works once. Using one is logged as a warning. |
+| Is it tested? | 636 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
 | What would you do next? | PostgreSQL, a background service for schedules, Reed-Solomon, master-key rotation or a key management service. |
 
 ## If something goes wrong

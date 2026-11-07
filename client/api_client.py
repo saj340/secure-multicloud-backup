@@ -16,6 +16,10 @@ class ApiError(Exception):
         self.status_code = status_code
 
 
+class TwoFactorRequired(ApiError):
+    """The password was right, but this account also needs a code from its authenticator app."""
+
+
 class ApiClient:
     def __init__(self, base_url=None, ca_cert=None):
         self.base_url = base_url or config.api_url()
@@ -69,10 +73,20 @@ class ApiClient:
             },
         ).json()
 
-    def login(self, email, password):
-        data = self._request(
-            "POST", "/accounts/login/", json={"email": email, "password": password}
-        ).json()
+    def login(self, email, password, code=None):
+        """Log in. Raises TwoFactorRequired if the account needs a code; call again with `code`."""
+        payload = {"email": email, "password": password}
+        if code:
+            payload["code"] = code
+        response = self._request("POST", "/accounts/login/", expected=(200, 401), json=payload)
+        if response.status_code == 401:
+            try:
+                needs_code = response.json().get("two_factor_required") is True
+            except (ValueError, AttributeError):
+                needs_code = False
+            message = self._extract_error(response)
+            raise (TwoFactorRequired if needs_code else ApiError)(message, 401)
+        data = response.json()
         self.token = data["token"]
         return data["user"]
 
@@ -101,6 +115,31 @@ class ApiClient:
             },
         ).json()
         self.token = data["token"]
+
+    # Two-factor login. A wrong password or code is a 400 here, never a 401, so it can't be
+    # mistaken for an expired session.
+
+    def two_factor_setup(self, password):
+        """Start turning it on. Returns {"secret": ..., "otpauth_uri": ...} for the authenticator app."""
+        return self._request(
+            "POST", "/accounts/two-factor/setup/", json={"password": password}
+        ).json()
+
+    def two_factor_enable(self, code):
+        """Finish turning it on with a code from the app. Returns the one-time backup codes."""
+        return self._request(
+            "POST", "/accounts/two-factor/enable/", json={"code": code}
+        ).json()["backup_codes"]
+
+    def two_factor_disable(self, password, code):
+        self._request(
+            "POST", "/accounts/two-factor/disable/", json={"password": password, "code": code}
+        )
+
+    def renew_backup_codes(self, password, code):
+        return self._request(
+            "POST", "/accounts/two-factor/backup-codes/", json={"password": password, "code": code}
+        ).json()["backup_codes"]
 
     def request_password_reset(self, email):
         return self._request(
@@ -301,7 +340,8 @@ class ApiClient:
             "current_password": "Current password",
             "new_password1": "New password",
             "new_password2": "Confirm new password",
-            "code": "Reset code",
+            "code": "Code",
+            "password": "Password",
         }
         messages = []
         for field, errors in data.items():
