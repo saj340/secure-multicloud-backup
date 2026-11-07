@@ -100,6 +100,11 @@ It creates a throwaway account and leaves its work files in your temp folder.
   ```
 - Recover again. Say: "The hash no longer matches, so that piece is treated as
   lost and rebuilt. Corrupted data is never handed back silently."
+- Open **Activity**: there is a *Warning: Fragment corrupted* entry naming the piece and the provider.
+  Say: "The file came back intact, but I'm told that one provider handed back bad data, because
+  that provider is now one failure away from losing the file." (Proven on real Backblaze, Storj and
+  Filebase buckets: one cloud unreachable, and separately one piece overwritten with random bytes;
+  every restored file was byte-for-byte identical.)
 
 ## Part 7: Extra features, if time allows (1 minute)
 
@@ -130,7 +135,7 @@ It creates a throwaway account and leaves its work files in your temp folder.
 | Why not use an existing backup tool? | The project's point is the integration: local encryption, multi-provider distribution, integrity verification and recovery under failure. |
 | Did you write your own encryption? | No. Fernet from the `cryptography` library and Django's password hasher; two-factor codes come from the `pyotp` library, and QR codes from `segno`. The custom part is the design around them. |
 | What if I lose my phone? | One of the eight one-time backup codes works in place of the app; each is stored only as a hash and works once. Using one is logged as a warning. |
-| Is it tested? | 639 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
+| Is it tested? | 643 automated tests, including end-to-end tests over real TLS and a local S3 server, provider outages and corrupted data. |
 | What would you do next? | PostgreSQL, a background service for schedules, Reed-Solomon, master-key rotation or a key management service. |
 
 ## If something goes wrong

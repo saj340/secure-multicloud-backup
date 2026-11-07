@@ -16,6 +16,7 @@ class DescribeTests(SimpleTestCase):
     def test_known_events_get_readable_names(self):
         self.assertEqual(describe_event("login_failed"), "Failed sign-in")
         self.assertEqual(describe_event("provider_unreachable"), "Provider unreachable")
+        self.assertEqual(describe_event("fragment_corrupted"), "Corrupted piece detected")
 
     def test_an_unknown_event_is_still_readable(self):
         self.assertEqual(describe_event("something_new_happened"), "Something new happened")

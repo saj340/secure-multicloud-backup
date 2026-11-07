@@ -43,6 +43,7 @@ EVENT_LABELS = {
     "file_version_failed": "File not backed up",
     "recovery_completed": "File restored",
     "recovery_failed": "Restore failed",
+    "fragment_corrupted": "Corrupted piece detected",
     "provider_reconnected": "Provider reconnected",
     "scheduled_backup_completed": "Scheduled backup finished",
     "scheduled_backup_failed": "Scheduled backup failed",

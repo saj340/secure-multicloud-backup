@@ -259,6 +259,7 @@ def recover_ciphertext(operation: RecoveryOperation) -> bytes:
         _fail(operation, "No integrity information is stored for this version.")
 
     available = {}
+    damaged = []
     locations = version.storage_locations.filter(
         upload_status=StorageLocation.UploadStatus.COMPLETED
     ).select_related("cloud_provider")
@@ -274,8 +275,26 @@ def recover_ciphertext(operation: RecoveryOperation) -> bytes:
             record.is_valid = valid
             record.verified_at = timezone.now()
             record.save(update_fields=["is_valid", "verified_at"])
+            if not valid:
+                damaged.append(location)
         if valid:
             available[location.fragment_index] = data
+
+    if damaged:
+        # A provider that hands back wrong data is worth knowing about even when the file can
+        # still be rebuilt from the other pieces: it is one failure away from losing it.
+        pieces = ", ".join(
+            f"piece {location.fragment_index} at '{location.cloud_provider.display_name}'"
+            for location in damaged
+        )
+        log_activity(
+            operation.user,
+            "fragment_corrupted",
+            f"{version}: {pieces} failed the integrity check and was not used.",
+            level=ActivityLog.Level.WARNING,
+            operation_id=operation.id,
+            provider_ids=[location.cloud_provider_id for location in damaged],
+        )
 
     try:
         ciphertext = reconstruct(available, fragmentation)

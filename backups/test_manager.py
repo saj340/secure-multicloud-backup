@@ -288,6 +288,44 @@ class RecoveryTests(PipelineTestCase):
         bad = version.integrity_records.get(scope=IntegrityRecord.Scope.FRAGMENT, fragment_index=1)
         self.assertIs(bad.is_valid, False)
 
+    def test_a_corrupted_fragment_is_reported_as_a_warning_naming_the_piece_and_provider(self):
+        version = self.client_backup()
+        next(self.folders[1].rglob("*.bin")).write_bytes(b"corrupted!" * 50)
+
+        self.client_recover(version)
+
+        entry = ActivityLog.objects.get(action="fragment_corrupted")
+        self.assertEqual(entry.level, ActivityLog.Level.WARNING)
+        self.assertEqual(entry.user, self.user)
+        self.assertIn("piece 1", entry.description)
+        self.assertIn(f"'{self.providers[1].display_name}'", entry.description)
+        self.assertNotIn(self.providers[0].display_name, entry.description)
+        self.assertEqual(entry.metadata["provider_ids"], [self.providers[1].id])
+
+    def test_a_clean_recovery_reports_no_corruption(self):
+        version = self.client_backup()
+        self.client_recover(version)
+        self.assertFalse(ActivityLog.objects.filter(action="fragment_corrupted").exists())
+
+    def test_a_provider_that_is_down_is_not_reported_as_corrupting_data(self):
+        version = self.client_backup()
+        shutil.rmtree(self.folders[0])
+        self.client_recover(version)
+        self.assertFalse(ActivityLog.objects.filter(action="fragment_corrupted").exists())
+
+    def test_corruption_is_reported_even_when_the_file_cannot_be_rebuilt(self):
+        version = self.client_backup()
+        next(self.folders[0].rglob("*.bin")).write_bytes(b"corrupted!" * 50)
+        next(self.folders[1].rglob("*.bin")).write_bytes(b"also bad!!" * 50)
+
+        operation = start_recovery(self.user, version)
+        with self.assertRaises(RecoveryError):
+            recover_ciphertext(operation)
+
+        entry = ActivityLog.objects.get(action="fragment_corrupted")
+        self.assertIn("piece 0", entry.description)
+        self.assertIn("piece 1", entry.description)
+
     def test_two_providers_down_fails_and_is_recorded(self):
         version = self.client_backup()
         shutil.rmtree(self.folders[0])

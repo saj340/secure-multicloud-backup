@@ -68,7 +68,9 @@ and shows the backup brings it back.
 - No single provider stores the whole ciphertext when n >= 3. With n = 2 it degrades
   to mirroring, which is stated in the documentation.
 - Every fragment has a recorded SHA-256; the whole file has one too. On recovery a
-  fragment whose hash does not match is treated exactly like a missing one.
+  fragment whose hash does not match is treated exactly like a missing one, and the Activity log
+  gets a warning naming the piece and the provider, so a cloud that silently damages data is noticed
+  even though the file was still rebuilt from the other pieces.
 - If two fragments are lost the recovery fails cleanly and says so; it never returns
   wrong data.
 - Code: `protection/fragmentation.py`. Tests: `protection/test_fragmentation.py`,
@@ -198,8 +200,8 @@ data. Object ids belonging to someone else return "not found".
   were not found at the new location), and *changes* in reachability (a warning when
   one becomes unreachable, an info entry when it recovers; repeated checks of an
   unchanged provider add nothing).
-- **Backups:** runs started and finished, files restored or failed to restore, schedule
-  runs and changes. (The per-file "stored" and "restore started" entries are kept in the
+- **Backups:** runs started and finished, files restored or failed to restore, pieces that
+  failed their integrity check on recovery (a warning), schedule runs and changes. (The per-file "stored" and "restore started" entries are kept in the
   database as an audit trail but hidden from the Activity screen, so a large backup
   doesn't bury everything else.)
 
